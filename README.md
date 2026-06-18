@@ -1,46 +1,93 @@
-# Hello AVL Code - Cloudflare Workers 测试项目
+# Hello AVL Code - Cloudflare Workers + D1 站长统计
 
-用于测试 Cloudflare Workers 从 GitHub 自动部署流程。
+将原有 Python + SQLite 站长统计系统迁移到 Cloudflare Workers + D1，实现边缘计算部署。
 
 ## 快速开始
 
-### 本地开发
+### 1. 创建 D1 数据库
 
 ```bash
-# 安装 Wrangler CLI
-npm install -g wrangler
+wrangler d1 create stats-db
+```
 
-# 登录 Cloudflare
-wrangler login
+复制返回的 `database_id`，填入 `wrangler.toml`。
 
-# 本地运行
+### 2. 执行数据库迁移
+
+```bash
+wrangler d1 migrations apply stats-db --local
+```
+
+### 3. 本地开发
+
+```bash
 wrangler dev
+```
 
-# 部署到生产
+访问 `http://localhost:8787/admin` 查看管理后台。
+
+### 4. 部署到生产
+
+```bash
 wrangler deploy
 ```
 
-### 验证部署
+## 功能特性
 
-- 访问 `https://hello-avlcode.your-subdomain.workers.dev/`
-- 或访问 `https://hello-avlcode.your-subdomain.workers.dev/api/hello`
+- 访问计数与去重（基于 session_id）
+- IP 属地识别（内网 IP 自动识别，公网 IP 可扩展）
+- 页面访问时长统计
+- 下载分类统计
+- 24小时/7天/30天趋势图表
+- IP 列表管理（排序、筛选）
 
 ## 项目结构
 
 ```
 ├── src/
-│   └── index.js      # Worker 入口文件
-├── wrangler.toml     # Wrangler 配置文件
+│   └── index.js      # Worker 主程序（含所有 API 和模板）
+├── migrations/
+│   └── 0001_init.sql # D1 数据库初始化脚本
+├── wrangler.toml     # Wrangler 配置
 └── README.md
 ```
 
-## 自动部署
+## API 接口
 
-本项目用于测试 Cloudflare Workers 的 Git 自动部署功能：
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /track | 上报访问数据 |
+| GET | /track/view | 图片追踪 |
+| GET | /admin/api/summary | 概览统计 |
+| GET | /admin/api/hourly | 小时统计 |
+| GET | /admin/api/daily | 日统计 |
+| GET | /admin/api/pages | 页面统计 |
+| GET | /admin/api/downloads | 下载统计 |
+| GET | /admin/api/locations | 属地统计 |
+| GET | /admin/api/ips | IP 列表 |
+| GET | /admin/api/recent | 最近访问 |
 
-1. 将代码推送到 GitHub
-2. 在 Cloudflare Dashboard 中连接 GitHub 仓库
-3. 开启自动部署，每次 push 后自动更新 Worker
+## 管理后台
+
+- `/admin` - 概览首页
+- `/admin/stats` - 详细统计
+- `/admin/ips` - IP 列表
+
+## 从原有 Python 版本迁移
+
+原有 `pagecount/` 目录下的 Python 代码已完全重写为 JavaScript：
+- `app.py` → `src/index.js`
+- `models.py` → D1 查询函数
+- `geoip.py` → 简化版内网识别 + geo_cache 表
+- `templates/` → 内嵌模板字符串
+- `static/` → 内嵌 CSS/JS
+
+## 注意事项
+
+- D1 单表最大 10MB，适合中小流量站点
+- Worker 代码最大 1MB，已精简模板和资源
+- IP 属地查询目前仅支持内网 IP，公网 IP 需扩展在线 API
+- 生产环境建议开启 D1 付费版以获得 SLA 和自动备份
 
 ---
 
