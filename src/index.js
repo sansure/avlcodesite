@@ -168,55 +168,55 @@ function handleTrackView(corsHeaders) {
 async function queryIpLocation(ip, env) {
   try {
     // 1. 查 D1 缓存
-    const cached = await env.DB.prepare(
-      'SELECT country, region, city FROM geo_cache WHERE ip = ?'
-    ).bind(ip).first();
+    // 1. 查 D1 缓存（兼容新旧表结构）
+    let cached = null;
+    try {
+      cached = await env.DB.prepare(
+        'SELECT country, region, city FROM geo_cache WHERE ip = ?'
+      ).bind(ip).first();
+    } catch (e) {
+      // 缓存查询失败不影响主流程
+    }
     
     if (cached) {
       return [cached.country, cached.region, cached.city].filter(Boolean).join(' ') || '未知';
     }
     
     // 2. 调用在线 API（ip-api.com，免费版 45 次/分钟，够用）
-    const resp = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`, {
-      headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
-      signal: AbortSignal.timeout(3000)
-    });
-    
-    if (resp.ok) {
-      const data = await resp.json();
-      if (data.status === 'success') {
-        const country = data.country || '';
-        const region = data.regionName || '';
-        const city = data.city || '';
-        const location = [country, region, city].filter(Boolean).join(' ') || country || '未知';
-        
-        // 3. 写入 D1 缓存
-        await env.DB.prepare(
-          'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
-        ).bind(ip, country, region, city, new Date().toISOString()).run();
-        
-        return location;
+    let location = '未知';
+    try {
+      const resp = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`, {
+        headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.status === 'success') {
+          const country = data.country || '';
+          const region = data.regionName || '';
+          const city = data.city || '';
+          location = [country, region, city].filter(Boolean).join(' ') || country || '未知';
+        }
       }
+    } catch (e) {
+      // 网络错误，静默处理
     }
     
-    // API 失败时存空值避免重复查询
-    await env.DB.prepare(
-      'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(ip, '', '', '', new Date().toISOString()).run();
-    
-    return '未知';
-  } catch (err) {
-    // 网络错误等，静默处理
+    // 3. 写入 D1 缓存（忽略失败）
     try {
       await env.DB.prepare(
         'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
-      ).bind(ip, '', '', '', new Date().toISOString()).run();
-    } catch (_) {}
+      ).bind(ip, location === '未知' ? '' : location.split(' ')[0], location === '未知' ? '' : location.split(' ')[1] || '', location === '未知' ? '' : location.split(' ').slice(2).join(' ') || '', new Date().toISOString()).run();
+    } catch (e) {
+      // 忽略缓存写入失败
+    }
+    
+    return location;
+  } catch (err) {
     return '未知';
   }
 }
-
-// ==================== 管理后台 API ====================
 async function handleAdminApi(request, env, corsHeaders) {
   const url = new URL(request.url);
   const path = url.pathname;

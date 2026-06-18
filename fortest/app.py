@@ -88,8 +88,8 @@ def track_to_stats(page_url, page_title='', duration=0, is_download=0, download_
             data=data,
             headers={'Content-Type': 'application/json'},
             method='POST'
-        )
-        urllib.request.urlopen(req, timeout=2)
+        urllib.request.urlopen(req, timeout=10)
+        print(f'追踪发送成功: {STATS_SERVER}/track')
     except Exception as e:
         print(f'追踪发送失败: {e}')
 
@@ -98,7 +98,7 @@ def get_total_views():
     try:
         import urllib.request
         req = urllib.request.Request(f'{STATS_SERVER}/admin/api/summary', method='GET')
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
             return data.get('total_unique', 0)
     except Exception:
