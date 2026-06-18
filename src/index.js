@@ -97,7 +97,7 @@ async function handleTrack(request, env, corsHeaders) {
     // IP 属地查询（简化：内网 IP 直接返回，其他从缓存或在线获取）
     let location = '内网IP';
     if (!isPrivateIp(ip)) {
-      const cached = await env.stats_db.prepare(
+      const cached = await env.DB.prepare(
         'SELECT country, region, city FROM geo_cache WHERE ip = ?'
       ).bind(ip).first();
       
@@ -105,14 +105,14 @@ async function handleTrack(request, env, corsHeaders) {
         location = [cached.country, cached.region, cached.city].filter(Boolean).join(' ') || '未知';
       } else {
         // 这里可以调用在线 IP 查询 API，简化处理先存空
-        await env.stats_db.prepare(
+        await env.DB.prepare(
           'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
         ).bind(ip, '', '', '', now).run();
       }
     }
 
     // 插入访问记录
-    await env.stats_db.prepare(`
+    await env.DB.prepare(`
       INSERT INTO visits (ip_address, ip_location, user_agent, page_url, page_title, referrer, duration, is_download, download_item, session_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -202,15 +202,15 @@ async function handleAdminApi(request, env, corsHeaders) {
 
 // ==================== 数据库查询函数 ====================
 async function getStatsSummary(env) {
-  const totalUnique = await env.stats_db.prepare('SELECT COUNT(DISTINCT ip_address) as cnt FROM visits').first();
-  const totalViews = await env.stats_db.prepare('SELECT COUNT(*) as cnt FROM visits').first();
-  const totalDownloads = await env.stats_db.prepare('SELECT COUNT(*) as cnt FROM visits WHERE is_download=1').first();
+  const totalUnique = await env.DB.prepare('SELECT COUNT(DISTINCT ip_address) as cnt FROM visits').first();
+  const totalViews = await env.DB.prepare('SELECT COUNT(*) as cnt FROM visits').first();
+  const totalDownloads = await env.DB.prepare('SELECT COUNT(*) as cnt FROM visits WHERE is_download=1').first();
   
   const yesterday = new Date(Date.now() - 86400000).toISOString();
-  const dailyUnique = await env.stats_db.prepare(
+  const dailyUnique = await env.DB.prepare(
     'SELECT COUNT(DISTINCT ip_address) as cnt FROM visits WHERE visit_time >= ?'
   ).bind(yesterday).first();
-  const dailyViews = await env.stats_db.prepare(
+  const dailyViews = await env.DB.prepare(
     'SELECT COUNT(*) as cnt FROM visits WHERE visit_time >= ?'
   ).bind(yesterday).first();
 
@@ -225,7 +225,7 @@ async function getStatsSummary(env) {
 
 async function getHourlyStats(env, hours) {
   const startTime = new Date(Date.now() - hours * 3600000).toISOString();
-  const { results } = await env.stats_db.prepare(`
+  const { results } = await env.DB.prepare(`
     SELECT strftime('%Y-%m-%d %H:00:00', visit_time) as hour, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors
     FROM visits WHERE visit_time >= ?
     GROUP BY hour ORDER BY hour ASC
@@ -236,7 +236,7 @@ async function getHourlyStats(env, hours) {
 
 async function getDailyStats(env, days) {
   const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.stats_db.prepare(`
+  const { results } = await env.DB.prepare(`
     SELECT DATE(visit_time) as date, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors,
            SUM(CASE WHEN is_download=1 THEN 1 ELSE 0 END) as downloads
     FROM visits WHERE visit_time >= ?
@@ -253,7 +253,7 @@ async function getDailyStats(env, days) {
 
 async function getPageStats(env, days) {
   const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.stats_db.prepare(`
+  const { results } = await env.DB.prepare(`
     SELECT page_url, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, AVG(duration) as avg_duration
     FROM visits WHERE visit_time >= ?
     GROUP BY page_url ORDER BY views DESC
@@ -269,7 +269,7 @@ async function getPageStats(env, days) {
 
 async function getDownloadStats(env, days) {
   const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.stats_db.prepare(`
+  const { results } = await env.DB.prepare(`
     SELECT download_item, COUNT(*) as count FROM visits
     WHERE visit_time >= ? AND is_download=1 AND download_item != ''
     GROUP BY download_item ORDER BY count DESC
@@ -280,7 +280,7 @@ async function getDownloadStats(env, days) {
 
 async function getLocationStats(env, days) {
   const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.stats_db.prepare(`
+  const { results } = await env.DB.prepare(`
     SELECT ip_location, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors
     FROM visits WHERE visit_time >= ? AND ip_location != ''
     GROUP BY ip_location ORDER BY visitors DESC
@@ -309,7 +309,7 @@ async function getIpList(env, limit, offset, locationFilter, downloadFilter) {
   query += ' GROUP BY ip_address, ip_location ORDER BY visit_count DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
   
-  const { results } = await env.stats_db.prepare(query).bind(...params).all();
+  const { results } = await env.DB.prepare(query).bind(...params).all();
   
   return results.map(r => ({
     ip_address: r.ip_address,
@@ -321,7 +321,7 @@ async function getIpList(env, limit, offset, locationFilter, downloadFilter) {
 }
 
 async function getRecentVisits(env, limit) {
-  const { results } = await env.stats_db.prepare(
+  const { results } = await env.DB.prepare(
     'SELECT * FROM visits ORDER BY visit_time DESC LIMIT ?'
   ).bind(limit).all();
   
