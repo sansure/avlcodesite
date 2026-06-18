@@ -2,10 +2,8 @@ name = 'stats-tracker'
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
-# D1 数据库绑定
-# 使用前请先执行: wrangler d1 create stats-db
-# 然后将返回的 database_id 填入下方
+# D1 数据库绑定（与 Cloudflare Dashboard 远程配置保持一致）
 [[d1_databases]]
-binding = "DB"
+binding = "stats-db"
 database_name = "stats-db"
-database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+database_id = "63eef9ce-28de-4290-9c9e-65e522013734"
