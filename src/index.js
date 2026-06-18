@@ -94,21 +94,10 @@ async function handleTrack(request, env, corsHeaders) {
     // 简单 session_id 生成
     const session_id = generateSessionId(ip, ua);
     
-    // IP 属地查询（简化：内网 IP 直接返回，其他从缓存或在线获取）
+    // IP 属地查询
     let location = '内网IP';
     if (!isPrivateIp(ip)) {
-      const cached = await env.DB.prepare(
-        'SELECT country, region, city FROM geo_cache WHERE ip = ?'
-      ).bind(ip).first();
-      
-      if (cached) {
-        location = [cached.country, cached.region, cached.city].filter(Boolean).join(' ') || '未知';
-      } else {
-        // 这里可以调用在线 IP 查询 API，简化处理先存空
-        await env.DB.prepare(
-          'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
-        ).bind(ip, '', '', '', now).run();
-      }
+      location = await queryIpLocation(ip, env);
     }
 
     // 插入访问记录
@@ -140,15 +129,72 @@ async function handleTrack(request, env, corsHeaders) {
 }
 
 function handleTrackView(corsHeaders) {
-  // 1x1 透明 GIF
-  const gif = 'R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
-  return new Response(Buffer.from(gif, 'base64'), {
+  // 1x1 透明 GIF（Workers 兼容：base64 → Uint8Array）
+  const gifB64 = 'R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+  const binaryStr = atob(gifB64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return new Response(bytes, {
     headers: {
       'Content-Type': 'image/gif',
       'Cache-Control': 'no-cache',
       ...corsHeaders
     }
   });
+}
+
+// ==================== GeoIP 查询 ====================
+async function queryIpLocation(ip, env) {
+  try {
+    // 1. 查 D1 缓存
+    const cached = await env.DB.prepare(
+      'SELECT country, region, city FROM geo_cache WHERE ip = ?'
+    ).bind(ip).first();
+    
+    if (cached) {
+      return [cached.country, cached.region, cached.city].filter(Boolean).join(' ') || '未知';
+    }
+    
+    // 2. 调用在线 API（ip-api.com，免费版 45 次/分钟，够用）
+    const resp = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`, {
+      headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
+      signal: AbortSignal.timeout(3000)
+    });
+    
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.status === 'success') {
+        const country = data.country || '';
+        const region = data.regionName || '';
+        const city = data.city || '';
+        const location = [country, region, city].filter(Boolean).join(' ') || country || '未知';
+        
+        // 3. 写入 D1 缓存
+        await env.DB.prepare(
+          'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(ip, country, region, city, new Date().toISOString()).run();
+        
+        return location;
+      }
+    }
+    
+    // API 失败时存空值避免重复查询
+    await env.DB.prepare(
+      'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(ip, '', '', '', new Date().toISOString()).run();
+    
+    return '未知';
+  } catch (err) {
+    // 网络错误等，静默处理
+    try {
+      await env.DB.prepare(
+        'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind(ip, '', '', '', new Date().toISOString()).run();
+    } catch (_) {}
+    return '未知';
+  }
 }
 
 // ==================== 管理后台 API ====================
@@ -263,7 +309,7 @@ async function getPageStats(env, days) {
     page_url: r.page_url,
     views: r.views,
     visitors: r.visitors,
-    avg_duration: Math.round(r.avg_duration || 0, 1)
+    avg_duration: Math.round((r.avg_duration || 0) * 10) / 10
   }));
 }
 
@@ -341,7 +387,6 @@ async function getRecentVisits(env, limit) {
 function generateSessionId(ip, ua) {
   const date = new Date().toISOString().split('T')[0];
   const raw = `${ip}|${ua}|${date}`;
-  // 简单 hash（Worker 环境可用 crypto.subtle，这里简化）
   let hash = 0;
   for (let i = 0; i < raw.length; i++) {
     const char = raw.charCodeAt(i);
@@ -368,7 +413,7 @@ function isPrivateIp(ip) {
   return false;
 }
 
-// ==================== 模板渲染（精简版） ====================
+// ==================== 模板渲染 ====================
 function renderDashboard() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -568,7 +613,7 @@ function renderIpList() {
 </html>`;
 }
 
-// ==================== 静态资源（精简版） ====================
+// ==================== 静态资源 ====================
 const CSS = `/* AVL Code 风格统一样式 */
 :root{--avl-primary:#2563eb;--avl-primary-dark:#1d4ed8;--avl-primary-light:#dbeafe;--avl-bg:#f8fafc;--avl-surface:#ffffff;--avl-text:#1e293b;--avl-text-secondary:#64748b;--avl-border:#e2e8f0;--avl-success:#10b981;--avl-warning:#f59e0b;--avl-danger:#ef4444;--avl-radius:8px;--avl-shadow:0 1px 3px rgba(0,0,0,0.1);}
 *{margin:0;padding:0;box-sizing:border-box}
