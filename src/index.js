@@ -52,6 +52,13 @@ export default {
       return handleTrackView(corsHeaders);
     }
 
+    // 根路径返回管理后台
+    if (path === '/' || path === '') {
+      return new Response(renderDashboard(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+      });
+    }
+
     // 默认响应
     return new Response('Hello AVL Code Worker!', {
       headers: { 'Content-Type': 'text/plain', ...corsHeaders }
