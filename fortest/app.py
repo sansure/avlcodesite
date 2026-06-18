@@ -123,66 +123,54 @@ class TestHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        
         # 【集成示例】动态生成追踪 JS
-        # 实际集成时，可将此 JS 提取为独立文件 /static/js/tracker.js
         if path == '/static/js/tracker.js':
             js = f'''
-            (function() {{
+            (function() {
                 var AVL_STATS_URL = '{STATS_SERVER}/track';
                 var AVL_STATS_IMG_URL = '{STATS_SERVER}/track/view';
                 
-                window.AVLStats = {{
-                    track: function(data) {{
-                        if (navigator.sendBeacon) {{
+                window.AVLStats = {
+                    track: function(data) {
+                        if (navigator.sendBeacon) {
                             navigator.sendBeacon(AVL_STATS_URL, JSON.stringify(data));
-            track_to_stats('/', '测试主页')  # 记录页面浏览
-            html = render_template('index.html', {'total_views': total, 'page_url': '/', 'page_title': '测试主页'})
-            self.send_html(html)
-            return
-                            fetch(AVL_STATS_URL, {{
+                        } else {
+                            fetch(AVL_STATS_URL, {
                                 method: 'POST',
-                                headers: {{'Content-Type': 'application/json'}},
-                                body: JSON.stringify(data),
-            track_to_stats('/page1', '子功能页 1')
-            html = render_template('page1.html', {'total_views': total, 'page_url': '/page1', 'page_title': '子功能页 1'})
-            self.send_html(html)
-            return
-                            }});
-                        }}
-                    }},
-                    trackView: function(page_url, page_title) {{
-            track_to_stats('/page2', '子功能页 2')
-            html = render_template('page2.html', {'total_views': total, 'page_url': '/page2', 'page_title': '子功能页 2'})
-            self.send_html(html)
-            return
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify(data)
+                            });
+                        }
+                    },
+                    trackView: function(page_url, page_title) {
+                        var img = new Image();
                         img.src = AVL_STATS_IMG_URL + '?page_url=' + encodeURIComponent(page_url) + '&page_title=' + encodeURIComponent(page_title || document.title);
-                    }},
-                    trackDownload: function(item_name) {{
-                        this.track({{
+                    },
+                    trackDownload: function(item_name) {
+                        this.track({
                             page_url: window.location.pathname,
                             page_title: document.title,
                             is_download: 1,
                             download_item: item_name
-                        }});
-                    }}
-                }};
+                        });
+                    }
+                };
                 
                 // 自动追踪页面浏览
-                window.addEventListener('load', function() {{
+                window.addEventListener('load', function() {
                     AVLStats.trackView(window.location.pathname, document.title);
                     window.__pageLoadTime = Date.now();
-                }});
+                });
                 
                 // 追踪页面停留时长
-                window.addEventListener('beforeunload', function() {{
+                window.addEventListener('beforeunload', function() {
                     var duration = Math.round((Date.now() - (window.__pageLoadTime || Date.now())) / 1000);
-                    AVLStats.track({{
+                    AVLStats.track({
                         page_url: window.location.pathname,
                         page_title: document.title,
                         duration: duration
-                    }});
-                }});
+                    });
+                });
             }})();
             '''
             self.send_response(200)
