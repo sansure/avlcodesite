@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试网站 - AVL Code 站长统计</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">
+            <img src="/static/img/avl-code-logo.png" alt="AVL Code" style="height: 32px; margin-right: 8px;">
+            <span>测试站点</span>
+        </a>
+        <ul class="navbar-nav">
+            <li><a href="/" class="active">首页</a></li>
+            <li><a href="/page1">子功能页 1</a></li>
+            <li><a href="/page2">子功能页 2</a></li>
+            <li><a href="/goto-stats" target="_blank">📊 站长统计</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div class="card" style="text-align: center; padding: 48px 24px;">
+            <h1 style="font-size: 32px; margin-bottom: 16px; color: var(--avl-primary);">
+                AVL Code 站长统计测试站点
+            </h1>
+            <p style="color: var(--avl-text-secondary); font-size: 16px; max-width: 600px; margin: 0 auto 32px;">
+                这是一个用于测试站长统计功能的演示站点。您可以浏览页面、点击下载按钮，所有访问数据将被自动记录并展示在站长统计后台。
+            </p>
+            
+            <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+                <a href="/page1" class="btn btn-primary">访问子功能页 1</a>
+                <a href="/page2" class="btn btn-primary">访问子功能页 2</a>
+                <a href="/goto-stats" class="btn btn-outline" target="_blank">查看站长统计</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">模拟下载区域</div>
+            <p style="color: var(--avl-text-secondary); margin-bottom: 20px;">
+                点击下方按钮模拟软件下载，下载次数将被统计记录。
+            </p>
+            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="simulateDownload('软件A')">
+                    ⬇️ 下载软件 A
+                </button>
+                <button class="btn btn-primary" onclick="simulateDownload('软件B')">
+                    ⬇️ 下载软件 B
+                </button>
+            </div>
+            <p id="downloadMsg" style="margin-top: 12px; color: var(--avl-success); font-size: 14px; min-height: 20px;"></p>
+        </div>
+
+        <div class="card">
+            <div class="card-header">页面导航</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                <a href="/" class="btn btn-outline" style="justify-content: center;">🏠 首页</a>
+                <a href="/page1" class="btn btn-outline" style="justify-content: center;">📄 子功能页 1</a>
+                <a href="/page2" class="btn btn-outline" style="justify-content: center;">📄 子功能页 2</a>
+                <a href="/goto-stats" class="btn btn-outline" style="justify-content: center;" target="_blank">📊 站长统计后台</a>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div style="margin-bottom: 8px;">
+            AVL Code 站长统计测试站点 · Powered by Python + Flask
+        </div>
+        <div style="font-weight: 600; color: var(--avl-primary); font-size: 16px;">
+            📊 当前总访问人数：<span id="totalViews">{{ total_views }}</span> 人
+        </div>
+    </footer>
+
+    <script src="/static/js/tracker.js"></script>
+    
+    <script>
+        // 下载按钮模拟
+        function simulateDownload(itemName) {
+            fetch('/download/' + encodeURIComponent(itemName), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({})
+            })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('downloadMsg').textContent = data.message;
+                setTimeout(() => {
+                    document.getElementById('downloadMsg').textContent = '';
+                }, 3000);
+            })
+            .catch(err => {
+                document.getElementById('downloadMsg').textContent = '下载记录失败';
+            });
+        }
+    </script>
+</body>
+</html>

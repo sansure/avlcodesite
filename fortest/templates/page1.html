@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>子功能页 1 - AVL Code 站长统计测试</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">
+            <img src="/static/img/avl-code-logo.png" alt="AVL Code" style="height: 32px; margin-right: 8px;">
+            <span>测试站点</span>
+        </a>
+        <ul class="navbar-nav">
+            <li><a href="/">首页</a></li>
+            <li><a href="/page1" class="active">子功能页 1</a></li>
+            <li><a href="/page2">子功能页 2</a></li>
+            <li><a href="/goto-stats" target="_blank">📊 站长统计</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-header">子功能页 1 - 功能介绍</div>
+            <p style="color: var(--avl-text-secondary); line-height: 1.8;">
+                这是测试站点的第一个子功能页面。您可以在此页面停留一段时间，站长统计系统将记录您的访问时长。
+                本页面用于测试页面访问时长统计功能。
+            </p>
+            <div style="margin-top: 24px; padding: 20px; background: var(--avl-bg); border-radius: var(--avl-radius);">
+                <h3 style="margin-bottom: 12px;">功能演示</h3>
+                <ul style="padding-left: 20px; color: var(--avl-text-secondary); line-height: 2;">
+                    <li>页面浏览追踪 - 记录每次页面访问</li>
+                    <li>停留时长统计 - 自动记录页面停留时间</li>
+                    <li>IP 属地识别 - 自动识别访问者地理位置</li>
+                    <li>独立会话管理 - 基于 IP 和 User-Agent 生成会话 ID</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">快速导航</div>
+            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                <a href="/" class="btn btn-outline">返回首页</a>
+                <a href="/page2" class="btn btn-primary">前往子功能页 2</a>
+                <a href="/goto-stats" class="btn btn-outline" target="_blank">查看站长统计</a>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div style="margin-bottom: 8px;">
+            AVL Code 站长统计测试站点 · 子功能页 1
+        </div>
+        <div style="font-weight: 600; color: var(--avl-primary); font-size: 16px;">
+            📊 当前总访问人数：<span id="totalViews">{{ total_views }}</span> 人
+        </div>
+    </footer>
+
+    <script src="/static/js/tracker.js"></script>
+    
+    <script>
+        // 每 10 秒刷新一次总访问人数
+        setInterval(() => {
+            fetch('/page1')
+                .then(r => r.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const el = doc.getElementById('totalViews');
+                    if (el) {
+                        document.getElementById('totalViews').textContent = el.textContent;
+                    }
+                });
+        }, 10000);
+    </script>
+</body>
+</html>
