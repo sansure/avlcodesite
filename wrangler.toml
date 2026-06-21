@@ -12,7 +12,3 @@ database_id = "63eef9ce-28de-4290-9c9e-65e522013734"
 # 构建配置
 [build]
 command = "echo 'No build step required'"
-
-# 限制配置
-[limits]
-cpu_ms = 50000
