@@ -53,26 +53,10 @@
             AVL Code 站长统计测试站点 · 子功能页 1
         </div>
         <div style="font-weight: 600; color: var(--avl-primary); font-size: 16px;">
-            📊 当前总访问人数：<span id="totalViews">{{ total_views }}</span> 人
+            📊 数据已自动上报至站长统计后台
         </div>
     </footer>
 
     <script src="/static/js/tracker.js"></script>
-    
-    <script>
-        // 每 10 秒刷新一次总访问人数
-        setInterval(() => {
-            fetch('/page1')
-                .then(r => r.text())
-                .then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const el = doc.getElementById('totalViews');
-                    if (el) {
-                        document.getElementById('totalViews').textContent = el.textContent;
-                    }
-                });
-        }, 10000);
-    </script>
 </body>
 </html>

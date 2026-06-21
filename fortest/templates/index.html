@@ -65,33 +65,26 @@
 
     <footer class="footer">
         <div style="margin-bottom: 8px;">
-            AVL Code 站长统计测试站点 · Powered by Python + Flask
+            AVL Code 站长统计测试站点 · 纯静态演示
         </div>
         <div style="font-weight: 600; color: var(--avl-primary); font-size: 16px;">
-            📊 当前总访问人数：<span id="totalViews">{{ total_views }}</span> 人
+            📊 数据已自动上报至站长统计后台
         </div>
     </footer>
 
     <script src="/static/js/tracker.js"></script>
     
     <script>
-        // 下载按钮模拟
+        // 下载按钮模拟 - 直接调用 AVLStats API 上报
         function simulateDownload(itemName) {
-            fetch('/download/' + encodeURIComponent(itemName), {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({})
-            })
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('downloadMsg').textContent = data.message;
-                setTimeout(() => {
-                    document.getElementById('downloadMsg').textContent = '';
-                }, 3000);
-            })
-            .catch(err => {
-                document.getElementById('downloadMsg').textContent = '下载记录失败';
-            });
+            if (window.AVLStats && window.AVLStats.trackDownload) {
+                window.AVLStats.trackDownload(itemName);
+            }
+            var msgEl = document.getElementById('downloadMsg');
+            msgEl.textContent = '✅ ' + itemName + ' 下载事件已上报';
+            setTimeout(function() {
+                msgEl.textContent = '';
+            }, 3000);
         }
     </script>
 </body>
