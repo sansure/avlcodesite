@@ -192,8 +192,6 @@ async function queryIpLocation(ip, env) {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-        headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
-      });
       
       if (resp.ok) {
         const data = await resp.json();
