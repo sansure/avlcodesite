@@ -664,6 +664,91 @@ async function handleUserUpdateApi(request, env, corsHeaders) {
 
 
 // ==================== 追踪接口 ====================
+async function queryIpLocation(ip, env) {
+  try {
+    // 1. 查 D1 缓存
+    let cached = null;
+    try {
+      cached = await env.DB.prepare(
+        'SELECT country, region, city FROM geo_cache WHERE ip = ?'
+      ).bind(ip).first();
+    } catch (e) {
+      // 缓存查询失败不影响主流程
+    }
+    
+    if (cached) {
+      return [cached.country, cached.region, cached.city].filter(Boolean).join(' ') || '未知';
+    }
+    
+    // 2. 调用在线 API
+    let location = '未知';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const resp = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`, {
+        headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.status === 'success') {
+          const country = data.country || '';
+          const region = data.regionName || '';
+          const city = data.city || '';
+          location = [country, region, city].filter(Boolean).join(' ') || country || '未知';
+        }
+      }
+    } catch (e) {
+      // 网络错误，静默处理
+    }
+    
+    // 3. 写入 D1 缓存（忽略失败）
+    try {
+      const parts = location === '未知' ? ['', '', ''] : location.split(' ');
+      await env.DB.prepare(
+        'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind(ip, parts[0] || '', parts[1] || '', parts.slice(2).join(' ') || '', new Date().toISOString()).run();
+    } catch (e) {
+      // 忽略缓存写入失败
+    }
+    
+    return location;
+  } catch (err) {
+    return '未知';
+  }
+}
+
+function generateSessionId(ip, ua) {
+  const date = new Date().toISOString().split('T')[0];
+  const raw = `${ip}|${ua}|${date}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16).padStart(16, '0');
+}
+
+function isPrivateIp(ip) {
+  if (!ip || ip === 'unknown') return true;
+  const parts = ip.split('.');
+  if (parts.length !== 4) return true;
+  
+  // 10.0.0.0/8
+  if (parts[0] === '10') return true;
+  // 172.16.0.0/12
+  if (parts[0] === '172' && parseInt(parts[1]) >= 16 && parseInt(parts[1]) <= 31) return true;
+  // 192.168.0.0/16
+  if (parts[0] === '192' && parts[1] === '168') return true;
+  // 127.0.0.0/8
+  if (parts[0] === '127') return true;
+  
+  return false;
+}
+
 async function handleTrack(request, env, corsHeaders) {
   try {
     const data = await request.json();
