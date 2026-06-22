@@ -1,5 +1,84 @@
 // AVL Code 站长统计 - Cloudflare Workers + D1 版本
 
+const CSS = `/* AVL Code 风格统一样式 */
+:root{--avl-primary:#2563eb;--avl-primary-dark:#1d4ed8;--avl-primary-light:#dbeafe;--avl-bg:#f8fafc;--avl-surface:#ffffff;--avl-text:#1e293b;--avl-text-secondary:#64748b;--avl-border:#e2e8f0;--avl-success:#10b981;--avl-warning:#f59e0b;--avl-danger:#ef4444;--avl-radius:8px;--avl-shadow:0 1px 3px rgba(0,0,0,0.1);}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--avl-bg);color:var(--avl-text);line-height:1.6}
+.navbar{background:var(--avl-surface);border-bottom:1px solid var(--avl-border);padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--avl-shadow)}
+.navbar-brand{font-size:20px;font-weight:700;color:var(--avl-primary);text-decoration:none;display:flex;align-items:center;gap:10px}
+.navbar-brand span{color:var(--avl-text);font-weight:400;font-size:14px}
+.navbar-nav{display:flex;gap:8px;list-style:none}
+.navbar-nav a{color:var(--avl-text-secondary);text-decoration:none;padding:8px 16px;border-radius:var(--avl-radius);font-size:14px;font-weight:500;transition:all .2s}
+.navbar-nav a:hover,.navbar-nav a.active{color:var(--avl-primary);background:var(--avl-primary-light)}
+.container{max-width:1400px;margin:0 auto;padding:24px}
+.card{background:var(--avl-surface);border-radius:var(--avl-radius);box-shadow:var(--avl-shadow);padding:24px;margin-bottom:24px}
+.card-header{font-size:18px;font-weight:600;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--avl-border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.range-label{font-size:14px;font-weight:400;color:var(--avl-text-secondary);margin:0 8px}
+.range-select{font-size:14px;padding:4px 8px;border:1px solid var(--avl-border);border-radius:4px;background:var(--avl-surface);color:var(--avl-text);cursor:pointer}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;margin-bottom:24px}
+.stat-card{background:var(--avl-surface);border-radius:var(--avl-radius);padding:20px;box-shadow:var(--avl-shadow);border:1px solid var(--avl-border);display:flex;align-items:center;gap:16px}
+.stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.stat-icon.blue{background:var(--avl-primary-light);color:var(--avl-primary)}
+.stat-icon.green{background:#d1fae5;color:var(--avl-success)}
+.stat-icon.orange{background:#fef3c7;color:var(--avl-warning)}
+.stat-icon.red{background:#fee2e2;color:var(--avl-danger)}
+.stat-content h3{font-size:28px;font-weight:700;color:var(--avl-text);line-height:1.2}
+.stat-content p{font-size:13px;color:var(--avl-text-secondary);margin-top:4px}
+.table-container{overflow-x:auto;border-radius:var(--avl-radius);border:1px solid var(--avl-border)}
+table{width:100%;border-collapse:collapse;background:var(--avl-surface);font-size:14px}
+th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--avl-border)}
+th{background:#f1f5f9;font-weight:600;color:var(--avl-text-secondary);font-size:13px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+tr:hover td{background:#f8fafc}
+td{color:var(--avl-text)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--avl-radius);font-size:14px;font-weight:500;text-decoration:none;border:1px solid transparent;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--avl-primary);color:white;border-color:var(--avl-primary)}
+.btn-outline{background:white;color:var(--avl-primary);border-color:var(--avl-border)}
+.btn-outline:hover{background:var(--avl-primary-light);border-color:var(--avl-primary)}
+.btn-sm{padding:4px 12px;font-size:13px}
+.form-control{padding:8px 12px;border:1px solid var(--avl-border);border-radius:var(--avl-radius);font-size:14px;background:white;color:var(--avl-text);outline:none;transition:border-color .2s}
+.form-control:focus{border-color:var(--avl-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+select.form-control{cursor:pointer}
+.chart-container{position:relative;height:300px;margin-top:16px}
+.chart-container canvas{width:100%!important;height:100%!important}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500;background:var(--avl-primary-light);color:var(--avl-primary)}
+.badge-success{background:#d1fae5;color:#065f46}
+.footer{text-align:center;padding:24px;color:var(--avl-text-secondary);font-size:13px;border-top:1px solid var(--avl-border);margin-top:40px;background:var(--avl-surface)}
+.text-center{text-align:center}.mb-0{margin-bottom:0}.mb-1{margin-bottom:8px}.mb-2{margin-bottom:16px}.mt-2{margin-top:16px}
+.sort-icon{display:inline-block;margin-left:4px;opacity:.5;font-size:12px}
+.sort-icon.active{opacity:1;color:var(--avl-primary)}
+@media(max-width:768px){.container{padding:16px}.stats-grid{grid-template-columns:1fr}.navbar{padding:0 16px}.navbar-brand span{display:none}}
+/* User Management */
+.btn-danger{background:#ef4444;color:white;border-color:#ef4444}
+.btn-danger:hover{background:#dc2626;border-color:#dc2626}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.active{display:flex}
+.modal{background:var(--avl-surface);border-radius:var(--avl-radius);padding:24px;width:90%;max-width:400px;box-shadow:0 4px 24px rgba(0,0,0,0.15)}
+.modal h3{margin-bottom:16px;font-size:18px;font-weight:600}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:14px;font-weight:500;margin-bottom:6px;color:var(--avl-text)}
+.form-group input{width:100%;padding:10px 12px;border:1px solid var(--avl-border);border-radius:var(--avl-radius);font-size:14px;background:white;color:var(--avl-text);outline:none;transition:border-color .2s}
+.form-group input:focus{border-color:var(--avl-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.modal-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:20px}
+`;
+
+const JS = `function formatNumber(num){if(num>=10000)return(num/10000).toFixed(1)+'万';return num.toLocaleString()}
+function formatDate(dateStr){if(!dateStr)return '-';const d=new Date(dateStr);return d.toLocaleString('zh-CN')}
+async function loadStats(){try{const[summary,hourly,daily,pages,downloads,locations,recent]=await Promise.all([fetch('/admin/api/summary').then(r=>r.json()).catch(()=>null),fetch('/admin/api/hourly?hours=24').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/daily?days=7').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/pages?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/downloads?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/locations?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/recent?limit=10').then(r=>r.json()).catch(()=>[])]);if(summary)updateSummaryCards(summary);updateHourlyChart(hourly||[]);updateDailyChart(daily||[]);updatePageTable(pages||[]);updateDownloadTable(downloads||[]);updateLocationTable(locations||[]);updateRecentTable(recent||[])}catch(e){console.error('加载统计数据失败:',e)}}
+function updateSummaryCards(data){const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=formatNumber(val)};set('total-unique',data.total_unique);set('total-views',data.total_views);set('daily-unique',data.daily_unique);set('daily-views',data.daily_views);set('total-downloads',data.total_downloads)}
+function updateHourlyChart(data,hours){const ctx=document.getElementById('hourlyChart');if(!ctx)return;const showDate=hours&&hours>24;const labels=data.map(d=>{if(!d.hour)return '';if(showDate)return d.hour.slice(5,16);return d.hour.slice(11,16)});const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);if(window.hourlyChartInstance)window.hourlyChartInstance.destroy();try{window.hourlyChartInstance=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:'访问次数',data:views,backgroundColor:'rgba(37,99,235,0.8)',borderColor:'rgba(37,99,235,1)',borderWidth:1,borderRadius:4},{label:'访问人数',data:visitors,backgroundColor:'rgba(16,185,129,0.8)',borderColor:'rgba(16,185,129,1)',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}})}catch(e){console.error('渲染小时图表失败:',e)}}
+function updateDailyChart(data,days){const ctx=document.getElementById('dailyChart');if(!ctx)return;const labels=data.map(d=>d.date?d.date.slice(5):'');const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);const downloads=data.map(d=>d.downloads||0);if(window.dailyChartInstance)window.dailyChartInstance.destroy();try{window.dailyChartInstance=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'访问次数',data:views,borderColor:'rgba(37,99,235,1)',backgroundColor:'rgba(37,99,235,0.1)',fill:true,tension:.3},{label:'访问人数',data:visitors,borderColor:'rgba(16,185,129,1)',backgroundColor:'rgba(16,185,129,0.1)',fill:true,tension:.3},{label:'下载次数',data:downloads,borderColor:'rgba(245,158,11,1)',backgroundColor:'rgba(245,158,11,0.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}})}catch(e){console.error('渲染日图表失败:',e)}}
+function updatePageTable(data){const tbody=document.getElementById('pageStatsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="4" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\
+async function loadUsers(){try{const resp=await fetch('/admin/api/users');const users=await resp.json();const tbody=document.getElementById('userTableBody');if(!tbody)return;if(users.length===0){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary);padding:24px">暂无用户</td></tr>';return}tbody.innerHTML=users.map(u=>`<tr><td>${u.id}</td><td>${u.username}</td><td>${formatDate(u.created_at)}</td><td><button onclick="openEditModal(${u.id})" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button><button onclick="deleteUser(${u.id})" class="btn btn-sm btn-danger">删除</button></td></tr>`).join('')}catch(e){console.error('加载用户列表失败:',e)}}
+function openCreateModal(){document.getElementById('newUsername').value='';document.getElementById('newPassword').value='';document.getElementById('createModal').classList.add('active')}
+function closeCreateModal(){document.getElementById('createModal').classList.remove('active')}
+async function createUser(){const username=document.getElementById('newUsername').value.trim();const password=document.getElementById('newPassword').value;if(!username||!password)return alert('请填写完整');const resp=await fetch('/admin/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});const data=await resp.json();if(resp.ok){closeCreateModal();loadUsers()}else{alert(data.error||'创建失败')}}
+function openEditModal(userId){document.getElementById('editUserId').value=userId;document.getElementById('editPassword').value='';document.getElementById('editModal').classList.add('active')}
+function closeEditModal(){document.getElementById('editModal').classList.remove('active')}
+async function updateUser(){const userId=document.getElementById('editUserId').value;const password=document.getElementById('editPassword').value;if(!password||password.length<6)return alert('密码至少6位');const resp=await fetch('/admin/api/users?id='+userId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});const data=await resp.json();if(resp.ok){closeEditModal();loadUsers()}else{alert(data.error||'修改失败')}}
+async function deleteUser(userId){if(!confirm('确定要删除该用户吗？'))return;const resp=await fetch('/admin/api/users?id='+userId,{method:'DELETE'});const data=await resp.json();if(resp.ok){loadUsers()}else{alert(data.error||'删除失败')}}
+async function handleLogout(){await fetch('/api/auth/logout',{method:'POST'});window.location.href='/admin'}
+`;
+
 // ==================== 密码验证与 Session 管理 ====================
 // PBKDF2-SHA256 密码哈希
 async function hashPassword(password, salt) {
@@ -168,143 +247,7 @@ function renderLoginPage(errorMsg) {
 
 // 功能：访问追踪、IP属地、页面统计、下载统计、管理后台
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const path = url.pathname;
-
-    // CORS 头
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    };
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
-    }
-
-    // 静态资源
-    if (path.startsWith('/static/')) {
-      return serveStatic(path, corsHeaders);
-    }
-
-    // ===== 认证 API（不需要登录） =====
-    if (path === '/api/auth/login' && request.method === 'POST') {
-      return handleLoginApi(request, env, corsHeaders);
-    }
-    if (path === '/api/auth/logout' && request.method === 'POST') {
-      return handleLogoutApi(request, env, corsHeaders);
-    }
-
-    // ===== 管理后台页面（需要登录验证） =====
-    if (path === '/admin' || path === '/admin/' || path === '/admin/stats' || path === '/admin/ips') {
-      // 检查登录状态
-      const token = getTokenFromCookie(request);
-      const userId = await verifySession(env, token);
-      if (!userId) {
-        return new Response(renderLoginPage(), {
-          status: 401,
-          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-        });
-      }
-      
-      if (path === '/admin/stats') {
-        return new Response(renderStats(), {
-          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-        });
-      }
-      if (path === '/admin/ips') {
-        return new Response(renderIpList(), {
-          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-        });
-      }
-      // 默认 /admin
-      return new Response(renderDashboard(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-
-    // API 路由（需要登录验证）
-    if (path.startsWith('/admin/api/')) {
-      const token = getTokenFromCookie(request);
-      const userId = await verifySession(env, token);
-      if (!userId) {
-        return new Response(JSON.stringify({ error: '未登录' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-      }
-      return handleAdminApi(request, env, corsHeaders);
-    }
-
-    // 追踪接口
-    if (path === '/track' && request.method === 'POST') {
-      return handleTrack(request, env, corsHeaders);
-    }
-    if (path === '/track/view') {
-      return handleTrackView(corsHeaders);
-    }
-
-    // 根路径返回管理后台（需要登录）
-    if (path === '/' || path === '') {
-      const token = getTokenFromCookie(request);
-      const userId = await verifySession(env, token);
-      if (!userId) {
-        return new Response(renderLoginPage(), {
-          status: 401,
-          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-        });
-      }
-      return new Response(renderDashboard(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-    // 管理后台页面
-    if (path === '/admin' || path === '/admin/') {
-      return new Response(renderDashboard(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-    if (path === '/admin/stats') {
-      return new Response(renderStats(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-    if (path === '/admin/ips') {
-      return new Response(renderIpList(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-
-    // API 路由
-    if (path.startsWith('/admin/api/')) {
-      return handleAdminApi(request, env, corsHeaders);
-    }
-
-    // 追踪接口
-    if (path === '/track' && request.method === 'POST') {
-      return handleTrack(request, env, corsHeaders);
-    }
-    if (path === '/track/view') {
-      return handleTrackView(corsHeaders);
-    }
-
-    // 根路径返回管理后台
-    if (path === '/' || path === '') {
-      return new Response(renderDashboard(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-
-    // 默认响应
-    return new Response('Hello AVL Code Worker!', {
-      headers: { 'Content-Type': 'text/plain', ...corsHeaders }
-    });
-  }
-};
-
-// ==================== 静态资源 ====================
+// ==================== 静态资源服务 ====================
 function serveStatic(path, corsHeaders) {
   const file = path.replace('/static/', '');
   
@@ -340,176 +283,48 @@ function serveStatic(path, corsHeaders) {
   });
 }
 
-// ==================== 追踪处理 ====================
-async function handleTrack(request, env, corsHeaders) {
-  try {
-    const data = await request.json();
-    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-    const ua = request.headers.get('User-Agent') || '';
-    const now = new Date().toISOString();
-    
-    // 简单 session_id 生成
-    const session_id = generateSessionId(ip, ua);
-    
-    // IP 属地查询
-    let location = '内网IP';
-    if (!isPrivateIp(ip)) {
-      location = await queryIpLocation(ip, env);
-    }
+// ==================== 登录/登出 API ====================
 
-    // 插入访问记录
-    await env.DB.prepare(`
-      INSERT INTO visits (ip_address, ip_location, user_agent, page_url, page_title, referrer, duration, is_download, download_item, session_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      ip,
-      location,
-      ua,
-      data.page_url || '/',
-      data.page_title || '',
-      data.referrer || '',
-      data.duration || 0,
-      data.is_download ? 1 : 0,
-      data.download_item || '',
-      session_id
-    ).run();
-
-    return new Response(JSON.stringify({ status: 'ok' }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
-    });
-  }
-}
-
-function handleTrackView(corsHeaders) {
-  // 1x1 透明 GIF（Workers 兼容：base64 → Uint8Array）
-  const gifB64 = 'R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
-  const binaryStr = atob(gifB64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
-  return new Response(bytes, {
-    headers: {
-      'Content-Type': 'image/gif',
-      'Cache-Control': 'no-cache',
-      ...corsHeaders
-    }
-  });
-}
-
-// ==================== GeoIP 查询 ====================
-async function queryIpLocation(ip, env) {
-  try {
-    // 1. 查 D1 缓存
-    // 1. 查 D1 缓存（兼容新旧表结构）
-    let cached = null;
-    try {
-      cached = await env.DB.prepare(
-        'SELECT country, region, city FROM geo_cache WHERE ip = ?'
-      ).bind(ip).first();
-    } catch (e) {
-      // 缓存查询失败不影响主流程
-    }
-    
-    if (cached) {
-      return [cached.country, cached.region, cached.city].filter(Boolean).join(' ') || '未知';
-    }
-    
-    // 2. 调用在线 API（ip-api.com，免费版 45 次/分钟，够用）
-    let location = '未知';
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const resp = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`, {
-        headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.status === 'success') {
-          const country = data.country || '';
-          const region = data.regionName || '';
-          const city = data.city || '';
-          location = [country, region, city].filter(Boolean).join(' ') || country || '未知';
-        }
-      }
-    } catch (e) {
-      // 网络错误，静默处理
-    }
-    
-    // 3. 写入 D1 缓存（忽略失败）
-    try {
-      await env.DB.prepare(
-        'INSERT OR REPLACE INTO geo_cache (ip, country, region, city, cached_at) VALUES (?, ?, ?, ?, ?)'
-      ).bind(ip, location === '未知' ? '' : location.split(' ')[0], location === '未知' ? '' : location.split(' ')[1] || '', location === '未知' ? '' : location.split(' ').slice(2).join(' ') || '', new Date().toISOString()).run();
-    } catch (e) {
-      // 忽略缓存写入失败
-    }
-    
-    return location;
-  } catch (err) {
-    return '未知';
-  }
-}
-
-// ==================== 认证 API ====================
 async function handleLoginApi(request, env, corsHeaders) {
   try {
     const { username, password } = await request.json();
-    
     if (!username || !password) {
-      return new Response(JSON.stringify({ success: false, error: '请输入用户名和密码' }), {
+      return new Response(JSON.stringify({ error: '请输入用户名和密码' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
-    // 查询用户
     const user = await env.DB.prepare(
-      'SELECT id, username, password_hash, salt FROM users WHERE username = ?'
+      'SELECT id, password_hash, salt FROM users WHERE username = ?'
     ).bind(username).first();
 
     if (!user) {
-      return new Response(JSON.stringify({ success: false, error: '用户名或密码错误' }), {
+      return new Response(JSON.stringify({ error: '用户名或密码错误' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
-    // 验证密码
-    const hash = await hashPassword(password, user.salt);
-    if (hash !== user.password_hash) {
-      return new Response(JSON.stringify({ success: false, error: '用户名或密码错误' }), {
+    const inputHash = await hashPassword(password, user.salt);
+    if (inputHash !== user.password_hash) {
+      return new Response(JSON.stringify({ error: '用户名或密码错误' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
-    // 生成 Session Token（有效期 24 小时）
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + 86400000).toISOString();
-    
+    const expiresAt = new Date(Date.now() + 86400 * 1000); // 24 hours
     await env.DB.prepare(
       'INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)'
-    ).bind(user.id, token, expiresAt).run();
+    ).bind(user.id, token, expiresAt.toISOString()).run();
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Set-Cookie': setCookieHeader(token),
-        ...corsHeaders
-      }
+    return new Response(JSON.stringify({ success: true, token }), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: '服务器错误: ' + err.message }), {
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
@@ -523,15 +338,10 @@ async function handleLogoutApi(request, env, corsHeaders) {
       await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
     }
     return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Set-Cookie': clearCookieHeader(),
-        ...corsHeaders
-      }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
@@ -539,6 +349,7 @@ async function handleLogoutApi(request, env, corsHeaders) {
 }
 
 
+// ==================== 管理后台 API ====================
 async function handleAdminApi(request, env, corsHeaders) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -587,174 +398,200 @@ async function handleAdminApi(request, env, corsHeaders) {
   }
 }
 
-// ==================== 数据库查询函数 ====================
-async function getStatsSummary(env) {
-  const totalUnique = await env.DB.prepare('SELECT COUNT(DISTINCT ip_address) as cnt FROM visits').first();
-  const totalViews = await env.DB.prepare('SELECT COUNT(*) as cnt FROM visits').first();
-  const totalDownloads = await env.DB.prepare('SELECT COUNT(*) as cnt FROM visits WHERE is_download=1').first();
-  
-  const yesterday = new Date(Date.now() - 86400000).toISOString();
-  const dailyUnique = await env.DB.prepare(
-    'SELECT COUNT(DISTINCT ip_address) as cnt FROM visits WHERE visit_time >= ?'
-  ).bind(yesterday).first();
-  const dailyViews = await env.DB.prepare(
-    'SELECT COUNT(*) as cnt FROM visits WHERE visit_time >= ?'
-  ).bind(yesterday).first();
+// ==================== 用户管理 API ====================
 
-  return {
-    total_unique: totalUnique?.cnt || 0,
-    total_views: totalViews?.cnt || 0,
-    total_downloads: totalDownloads?.cnt || 0,
-    daily_unique: dailyUnique?.cnt || 0,
-    daily_views: dailyViews?.cnt || 0
-  };
-}
-
-async function getHourlyStats(env, hours) {
-  const startTime = new Date(Date.now() - hours * 3600000).toISOString();
-  const { results } = await env.DB.prepare(`
-    SELECT strftime('%Y-%m-%d %H:00:00', visit_time) as hour, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors
-    FROM visits WHERE visit_time >= ?
-    GROUP BY hour ORDER BY hour ASC
-  `).bind(startTime).all();
-  
-  return results.map(r => ({ hour: r.hour, views: r.views, visitors: r.visitors }));
-}
-
-async function getDailyStats(env, days) {
-  const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.DB.prepare(`
-    SELECT DATE(visit_time) as date, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors,
-           SUM(CASE WHEN is_download=1 THEN 1 ELSE 0 END) as downloads
-    FROM visits WHERE visit_time >= ?
-    GROUP BY DATE(visit_time) ORDER BY date ASC
-  `).bind(startTime).all();
-  
-  return results.map(r => ({
-    date: r.date,
-    views: r.views,
-    visitors: r.visitors,
-    downloads: r.downloads || 0
-  }));
-}
-
-async function getPageStats(env, days) {
-  const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.DB.prepare(`
-    SELECT page_url, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, AVG(duration) as avg_duration
-    FROM visits WHERE visit_time >= ?
-    GROUP BY page_url ORDER BY views DESC
-  `).bind(startTime).all();
-  
-  return results.map(r => ({
-    page_url: r.page_url,
-    views: r.views,
-    visitors: r.visitors,
-    avg_duration: Math.round((r.avg_duration || 0) * 10) / 10
-  }));
-}
-
-async function getDownloadStats(env, days) {
-  const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.DB.prepare(`
-    SELECT download_item, COUNT(*) as count FROM visits
-    WHERE visit_time >= ? AND is_download=1 AND download_item != ''
-    GROUP BY download_item ORDER BY count DESC
-  `).bind(startTime).all();
-  
-  return results.map(r => ({ download_item: r.download_item, count: r.count }));
-}
-
-async function getLocationStats(env, days) {
-  const startTime = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-  const { results } = await env.DB.prepare(`
-    SELECT ip_location, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors
-    FROM visits WHERE visit_time >= ? AND ip_location != ''
-    GROUP BY ip_location ORDER BY visitors DESC
-  `).bind(startTime).all();
-  
-  return results.map(r => ({ location: r.ip_location, views: r.views, visitors: r.visitors }));
-}
-
-async function getIpList(env, limit, offset, locationFilter, downloadFilter) {
-  let query = `
-    SELECT ip_address, ip_location, COUNT(*) as visit_count, MAX(visit_time) as last_visit,
-           GROUP_CONCAT(DISTINCT CASE WHEN is_download=1 AND download_item!='' THEN download_item END) as downloads
-    FROM visits WHERE 1=1
-  `;
-  const params = [];
-  
-  if (locationFilter) {
-    query += ' AND ip_location LIKE ?';
-    params.push(`%${locationFilter}%`);
+async function handleUserListApi(request, env, corsHeaders) {
+  try {
+    const users = await env.DB.prepare(
+      'SELECT id, username, created_at FROM users ORDER BY created_at DESC'
+    ).all();
+    return new Response(JSON.stringify(users.results || []), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
   }
-  if (downloadFilter) {
-    query += ' AND download_item LIKE ?';
-    params.push(`%${downloadFilter}%`);
+}
+
+async function handleUserCreateApi(request, env, corsHeaders) {
+  try {
+    const { username, password } = await request.json();
+    if (!username || !password) {
+      return new Response(JSON.stringify({ error: '用户名和密码不能为空' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    if (password.length < 6) {
+      return new Response(JSON.stringify({ error: '密码至少6位' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    const existing = await env.DB.prepare(
+      'SELECT id FROM users WHERE username = ?'
+    ).bind(username).first();
+    if (existing) {
+      return new Response(JSON.stringify({ error: '用户名已存在' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    const salt = 'avlcodesite';
+    const passwordHash = await hashPassword(password, salt);
+    const now = new Date().toISOString();
+
+    await env.DB.prepare(
+      'INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)'
+    ).bind(username, passwordHash, salt, now).run();
+
+    return new Response(JSON.stringify({ success: true, message: '用户创建成功' }), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
   }
-  
-  query += ' GROUP BY ip_address, ip_location ORDER BY visit_count DESC LIMIT ? OFFSET ?';
-  params.push(limit, offset);
-  
-  const { results } = await env.DB.prepare(query).bind(...params).all();
-  
-  return results.map(r => ({
-    ip_address: r.ip_address,
-    location: r.ip_location,
-    visit_count: r.visit_count,
-    last_visit: r.last_visit,
-    downloads: r.downloads ? r.downloads.split(',').filter(Boolean) : []
-  }));
 }
 
-async function getRecentVisits(env, limit) {
-  const { results } = await env.DB.prepare(
-    'SELECT * FROM visits ORDER BY visit_time DESC LIMIT ?'
-  ).bind(limit).all();
-  
-  return results.map(r => ({
-    id: r.id,
-    ip_address: r.ip_address,
-    ip_location: r.ip_location,
-    page_url: r.page_url,
-    visit_time: r.visit_time,
-    duration: r.duration,
-    is_download: r.is_download,
-    download_item: r.download_item
-  }));
-}
+async function handleUserDeleteApi(request, env, corsHeaders) {
+  try {
+    const url = new URL(request.url);
+    const userId = url.searchParams.get('id');
+    if (!userId) {
+      return new Response(JSON.stringify({ error: '缺少用户ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
 
-// ==================== 工具函数 ====================
-function generateSessionId(ip, ua) {
-  const date = new Date().toISOString().split('T')[0];
-  const raw = `${ip}|${ua}|${date}`;
-  let hash = 0;
-  for (let i = 0; i < raw.length; i++) {
-    const char = raw.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+    // Prevent deleting self
+    const token = getTokenFromCookie(request);
+    const currentUserId = await verifySession(env, token);
+    if (currentUserId && currentUserId == userId) {
+      return new Response(JSON.stringify({ error: '不能删除当前登录用户' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+    return new Response(JSON.stringify({ success: true, message: '用户已删除' }), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
   }
-  return Math.abs(hash).toString(16).padStart(16, '0');
 }
 
-function isPrivateIp(ip) {
-  if (!ip || ip === 'unknown') return true;
-  const parts = ip.split('.');
-  if (parts.length !== 4) return true;
-  
-  // 10.0.0.0/8
-  if (parts[0] === '10') return true;
-  // 172.16.0.0/12
-  if (parts[0] === '172' && parseInt(parts[1]) >= 16 && parseInt(parts[1]) <= 31) return true;
-  // 192.168.0.0/16
-  if (parts[0] === '192' && parts[1] === '168') return true;
-  // 127.0.0.0/8
-  if (parts[0] === '127') return true;
-  
-  return false;
+async function handleUserUpdateApi(request, env, corsHeaders) {
+  try {
+    const url = new URL(request.url);
+    const userId = url.searchParams.get('id');
+    const { password } = await request.json();
+    
+    if (!userId) {
+      return new Response(JSON.stringify({ error: '缺少用户ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    if (!password || password.length < 6) {
+      return new Response(JSON.stringify({ error: '密码至少6位' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    const salt = 'avlcodesite';
+    const passwordHash = await hashPassword(password, salt);
+    await env.DB.prepare(
+      'UPDATE users SET password_hash = ? WHERE id = ?'
+    ).bind(passwordHash, userId).run();
+
+    return new Response(JSON.stringify({ success: true, message: '密码修改成功' }), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
 }
 
-// ==================== 模板渲染 ====================
+
+// ==================== 追踪接口 ====================
+async function handleTrack(request, env, corsHeaders) {
+  try {
+    const data = await request.json();
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const ua = request.headers.get('User-Agent') || '';
+    const now = new Date().toISOString();
+    
+    // 简单 session_id 生成
+    const session_id = generateSessionId(ip, ua);
+    
+    // IP 属地查询
+    let location = '内网IP';
+    if (!isPrivateIp(ip)) {
+      location = await queryIpLocation(ip, env);
+    }
+
+    // 插入访问记录
+    await env.DB.prepare(`
+      INSERT INTO visits (ip_address, ip_location, user_agent, page_url, page_title, referrer, duration, is_download, download_item, session_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      ip,
+      location,
+      ua,
+      data.page_url || '/',
+      data.page_title || '',
+      data.referrer || '',
+      data.duration || 0,
+      data.is_download ? 1 : 0,
+      data.download_item || '',
+      session_id
+    ).run();
+
+    return new Response(JSON.stringify({ status: 'ok' }), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+}function handleTrackView(corsHeaders) {
+  // 1x1 透明 GIF（Workers 兼容：base64 → Uint8Array）
+  const gifB64 = 'R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+  const binaryStr = atob(gifB64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return new Response(bytes, {
+    headers: {
+      'Content-Type': 'image/gif',
+      'Cache-Control': 'no-cache',
+      ...corsHeaders
+    }
+  });
+}
+
+// ==================== 页面渲染 ====================
 function renderDashboard() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -776,7 +613,6 @@ function renderDashboard() {
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
     </ul>
-      <li style="margin-left:auto;"><a href="#" onclick="handleLogout();return false;" style="color:var(--avl-text-secondary);">退出登录</a></li>
   </nav>
   <div class="container">
     <div class="stats-grid">
@@ -825,23 +661,10 @@ function renderDashboard() {
       document.getElementById('dailyRangeLabel').textContent = label;
       fetch('/admin/api/daily?days=' + days).then(r => r.json()).then(data => updateDailyChart(data, days));
     }
-    }
-  </script>
-  <script>
-    async function handleLogout() {
-      if (!confirm('确定要退出登录吗？')) return;
-      try {
-        const resp = await fetch('/api/auth/logout', { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) window.location.href = '/admin';
-      } catch(e) { console.error('退出失败:', e); }
-    }
   </script>
 </body>
 </html>`;
-}
-
-function renderStats() {
+}function renderStats() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -862,7 +685,6 @@ function renderStats() {
       <li><a href="/admin/stats" class="active">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
     </ul>
-      <li style="margin-left:auto;"><a href="#" onclick="handleLogout();return false;" style="color:var(--avl-text-secondary);">退出登录</a></li>
   </nav>
   <div class="container">
     <div class="card">
@@ -910,23 +732,10 @@ function renderStats() {
       }).catch(err => console.error('加载失败:', err));
     }
     document.addEventListener('DOMContentLoaded', function() { updatePageRange(30); });
-    document.addEventListener('DOMContentLoaded', function() { updatePageRange(30); });
-  </script>
-  <script>
-    async function handleLogout() {
-      if (!confirm('确定要退出登录吗？')) return;
-      try {
-        const resp = await fetch('/api/auth/logout', { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) window.location.href = '/admin';
-      } catch(e) { console.error('退出失败:', e); }
-    }
   </script>
 </body>
 </html>`;
-}
-
-function renderIpList() {
+}function renderIpList() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -947,7 +756,6 @@ function renderIpList() {
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips" class="active">IP 列表</a></li>
     </ul>
-      <li style="margin-left:auto;"><a href="#" onclick="handleLogout();return false;" style="color:var(--avl-text-secondary);">退出登录</a></li>
   </nav>
   <div class="container">
     <div class="card">
@@ -975,81 +783,329 @@ function renderIpList() {
   </div>
   <footer class="footer">AVL Code 站长统计系统 · Powered by Cloudflare Workers + D1</footer>
   <script src="/static/js/main.js"></script>
+</body>
+</html>`;
+}
+function renderUserManage() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户管理 - AVL Code 站长统计</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .user-card{background:var(--avl-surface);border-radius:var(--avl-radius);box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:24px;margin-bottom:24px}
+    .user-table{width:100%;border-collapse:collapse;margin-top:16px}
+    .user-table th,.user-table td{text-align:left;padding:12px;border-bottom:1px solid var(--avl-border)}
+    .user-table th{font-weight:600;color:var(--avl-text-secondary);font-size:13px;text-transform:uppercase}
+    .btn{padding:8px 16px;border:none;border-radius:6px;font-size:14px;cursor:pointer;transition:all .2s}
+    .btn-primary{background:var(--avl-primary);color:#fff}
+    .btn-primary:hover{background:var(--avl-primary-dark)}
+    .btn-danger{background:#ef4444;color:#fff}
+    .btn-danger:hover{background:#dc2626}
+    .btn-sm{padding:6px 12px;font-size:13px}
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center}
+    .modal-overlay.active{display:flex}
+    .modal{background:var(--avl-surface);border-radius:var(--avl-radius);padding:24px;width:90%;max-width:400px}
+    .modal h3{margin-bottom:16px;font-size:18px}
+    .form-group{margin-bottom:16px}
+    .form-group label{display:block;font-size:14px;font-weight:500;margin-bottom:6px}
+    .form-group input{width:100%;padding:10px;border:1px solid var(--avl-border);border-radius:6px;font-size:14px}
+    .modal-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:20px}
+  </style>
+</head>
+<body>
+  <div class="dashboard-wrapper">
+    <nav class="navbar">
+      <div class="nav-brand">
+        <img src="/static/img/avl-code-logo.png" alt="AVL Code" class="nav-logo">
+        <span class="nav-title">AVL Code 站长统计</span>
+      </div>
+      <div class="nav-links">
+        <a href="/admin" class="nav-link">仪表盘</a>
+        <a href="/admin/stats" class="nav-link">详细统计</a>
+        <a href="/admin/ips" class="nav-link">IP 列表</a>
+        <a href="/admin/users" class="nav-link active">用户管理</a>
+        <button onclick="handleLogout()" class="btn btn-sm btn-outline">退出登录</button>
+      </div>
+    </nav>
+    <main class="main-content">
+      <div class="user-card">
+        <div class="card-header">
+          <h2>用户列表</h2>
+          <button onclick="openCreateModal()" class="btn btn-primary">+ 新增用户</button>
+        </div>
+        <table class="user-table">
+          <thead>
+            <tr><th>ID</th><th>用户名</th><th>创建时间</th><th>操作</th></tr>
+          </thead>
+          <tbody id="userTableBody">
+            <tr><td colspan="4" class="text-center" style="color:var(--avl-text-secondary);padding:24px">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create User Modal -->
+  <div id="createModal" class="modal-overlay">
+    <div class="modal">
+      <h3>新增用户</h3>
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="newUsername" placeholder="请输入用户名">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="newPassword" placeholder="请输入密码（至少6位）">
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeCreateModal()" class="btn btn-outline">取消</button>
+        <button onclick="createUser()" class="btn btn-primary">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Password Modal -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal">
+      <h3>修改密码</h3>
+      <input type="hidden" id="editUserId">
+      <div class="form-group">
+        <label>新密码</label>
+        <input type="password" id="editPassword" placeholder="请输入新密码（至少6位）">
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeEditModal()" class="btn btn-outline">取消</button>
+        <button onclick="updateUser()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    async function handleLogout() {
-      if (!confirm('确定要退出登录吗？')) return;
-      try {
-        const resp = await fetch('/api/auth/logout', { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) window.location.href = '/admin';
-      } catch(e) { console.error('退出失败:', e); }
+    async function loadUsers() {
+      const resp = await fetch('/admin/api/users');
+      const users = await resp.json();
+      const tbody = document.getElementById('userTableBody');
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary)">暂无用户</td></tr>';
+        return;
+      }
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${new Date(u.created_at).toLocaleString()}</td>
+          <td>
+            <button onclick="openEditModal(${u.id}, '${u.username}')" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>
+            <button onclick="deleteUser(${u.id})" class="btn btn-sm btn-danger">删除</button>
+          </td>
+        </tr>
+      `).join('');
     }
+
+    function openCreateModal() {
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('createModal').classList.add('active');
+    }
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('active');
+    }
+    async function createUser() {
+      const username = document.getElementById('newUsername').value.trim();
+      const password = document.getElementById('newPassword').value;
+      if (!username || !password) return alert('请填写完整');
+      const resp = await fetch('/admin/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        closeCreateModal();
+        loadUsers();
+      } else {
+        alert(data.error || '创建失败');
+      }
+    }
+
+    function openEditModal(userId, username) {
+      document.getElementById('editUserId').value = userId;
+      document.getElementById('editPassword').value = '';
+      document.getElementById('editModal').classList.add('active');
+    }
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('active');
+    }
+    async function updateUser() {
+      const userId = document.getElementById('editUserId').value;
+      const password = document.getElementById('editPassword').value;
+      if (!password || password.length < 6) return alert('密码至少6位');
+      const resp = await fetch('/admin/api/users?id=' + userId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        closeEditModal();
+        loadUsers();
+      } else {
+        alert(data.error || '修改失败');
+      }
+    }
+
+    async function deleteUser(userId) {
+      if (!confirm('确定要删除该用户吗？')) return;
+      const resp = await fetch('/admin/api/users?id=' + userId, { method: 'DELETE' });
+      const data = await resp.json();
+      if (resp.ok) {
+        loadUsers();
+      } else {
+        alert(data.error || '删除失败');
+      }
+    }
+
+    async function handleLogout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/admin';
+    }
+
+    loadUsers();
   </script>
 </body>
 </html>`;
 }
 
-// ==================== 静态资源 ====================
-const CSS = `/* AVL Code 风格统一样式 */
-:root{--avl-primary:#2563eb;--avl-primary-dark:#1d4ed8;--avl-primary-light:#dbeafe;--avl-bg:#f8fafc;--avl-surface:#ffffff;--avl-text:#1e293b;--avl-text-secondary:#64748b;--avl-border:#e2e8f0;--avl-success:#10b981;--avl-warning:#f59e0b;--avl-danger:#ef4444;--avl-radius:8px;--avl-shadow:0 1px 3px rgba(0,0,0,0.1);}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--avl-bg);color:var(--avl-text);line-height:1.6}
-.navbar{background:var(--avl-surface);border-bottom:1px solid var(--avl-border);padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--avl-shadow)}
-.navbar-brand{font-size:20px;font-weight:700;color:var(--avl-primary);text-decoration:none;display:flex;align-items:center;gap:10px}
-.navbar-brand span{color:var(--avl-text);font-weight:400;font-size:14px}
-.navbar-nav{display:flex;gap:8px;list-style:none}
-.navbar-nav a{color:var(--avl-text-secondary);text-decoration:none;padding:8px 16px;border-radius:var(--avl-radius);font-size:14px;font-weight:500;transition:all .2s}
-.navbar-nav a:hover,.navbar-nav a.active{color:var(--avl-primary);background:var(--avl-primary-light)}
-.container{max-width:1400px;margin:0 auto;padding:24px}
-.card{background:var(--avl-surface);border-radius:var(--avl-radius);box-shadow:var(--avl-shadow);padding:24px;margin-bottom:24px}
-.card-header{font-size:18px;font-weight:600;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--avl-border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.range-label{font-size:14px;font-weight:400;color:var(--avl-text-secondary);margin:0 8px}
-.range-select{font-size:14px;padding:4px 8px;border:1px solid var(--avl-border);border-radius:4px;background:var(--avl-surface);color:var(--avl-text);cursor:pointer}
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;margin-bottom:24px}
-.stat-card{background:var(--avl-surface);border-radius:var(--avl-radius);padding:20px;box-shadow:var(--avl-shadow);border:1px solid var(--avl-border);display:flex;align-items:center;gap:16px}
-.stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
-.stat-icon.blue{background:var(--avl-primary-light);color:var(--avl-primary)}
-.stat-icon.green{background:#d1fae5;color:var(--avl-success)}
-.stat-icon.orange{background:#fef3c7;color:var(--avl-warning)}
-.stat-icon.red{background:#fee2e2;color:var(--avl-danger)}
-.stat-content h3{font-size:28px;font-weight:700;color:var(--avl-text);line-height:1.2}
-.stat-content p{font-size:13px;color:var(--avl-text-secondary);margin-top:4px}
-.table-container{overflow-x:auto;border-radius:var(--avl-radius);border:1px solid var(--avl-border)}
-table{width:100%;border-collapse:collapse;background:var(--avl-surface);font-size:14px}
-th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--avl-border)}
-th{background:#f1f5f9;font-weight:600;color:var(--avl-text-secondary);font-size:13px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
-tr:hover td{background:#f8fafc}
-td{color:var(--avl-text)}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--avl-radius);font-size:14px;font-weight:500;text-decoration:none;border:1px solid transparent;cursor:pointer;transition:all .2s}
-.btn-primary{background:var(--avl-primary);color:white;border-color:var(--avl-primary)}
-.btn-outline{background:white;color:var(--avl-primary);border-color:var(--avl-border)}
-.btn-outline:hover{background:var(--avl-primary-light);border-color:var(--avl-primary)}
-.btn-sm{padding:4px 12px;font-size:13px}
-.form-control{padding:8px 12px;border:1px solid var(--avl-border);border-radius:var(--avl-radius);font-size:14px;background:white;color:var(--avl-text);outline:none;transition:border-color .2s}
-.form-control:focus{border-color:var(--avl-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
-select.form-control{cursor:pointer}
-.chart-container{position:relative;height:300px;margin-top:16px}
-.chart-container canvas{width:100%!important;height:100%!important}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500;background:var(--avl-primary-light);color:var(--avl-primary)}
-.badge-success{background:#d1fae5;color:#065f46}
-.footer{text-align:center;padding:24px;color:var(--avl-text-secondary);font-size:13px;border-top:1px solid var(--avl-border);margin-top:40px;background:var(--avl-surface)}
-.text-center{text-align:center}.mb-0{margin-bottom:0}.mb-1{margin-bottom:8px}.mb-2{margin-bottom:16px}.mt-2{margin-top:16px}
-.sort-icon{display:inline-block;margin-left:4px;opacity:.5;font-size:12px}
-.sort-icon.active{opacity:1;color:var(--avl-primary)}
-@media(max-width:768px){.container{padding:16px}.stats-grid{grid-template-columns:1fr}.navbar{padding:0 16px}.navbar-brand span{display:none}}`;
+// 功能：访问追踪、IP属地、页面统计、下载统计、管理后台、用户管理
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const path = url.pathname;
 
-const JS = `function formatNumber(num){if(num>=10000)return(num/10000).toFixed(1)+'万';return num.toLocaleString()}
-function formatDate(dateStr){if(!dateStr)return '-';const d=new Date(dateStr);return d.toLocaleString('zh-CN')}
-async function loadStats(){try{const[summary,hourly,daily,pages,downloads,locations,recent]=await Promise.all([fetch('/admin/api/summary').then(r=>r.json()).catch(()=>null),fetch('/admin/api/hourly?hours=24').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/daily?days=7').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/pages?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/downloads?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/locations?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/recent?limit=10').then(r=>r.json()).catch(()=>[])]);if(summary)updateSummaryCards(summary);updateHourlyChart(hourly||[]);updateDailyChart(daily||[]);updatePageTable(pages||[]);updateDownloadTable(downloads||[]);updateLocationTable(locations||[]);updateRecentTable(recent||[])}catch(e){console.error('加载统计数据失败:',e)}}
-function updateSummaryCards(data){const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=formatNumber(val)};set('total-unique',data.total_unique);set('total-views',data.total_views);set('daily-unique',data.daily_unique);set('daily-views',data.daily_views);set('total-downloads',data.total_downloads)}
-function updateHourlyChart(data,hours){const ctx=document.getElementById('hourlyChart');if(!ctx)return;const showDate=hours&&hours>24;const labels=data.map(d=>{if(!d.hour)return '';if(showDate)return d.hour.slice(5,16);return d.hour.slice(11,16)});const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);if(window.hourlyChartInstance)window.hourlyChartInstance.destroy();try{window.hourlyChartInstance=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:'访问次数',data:views,backgroundColor:'rgba(37,99,235,0.8)',borderColor:'rgba(37,99,235,1)',borderWidth:1,borderRadius:4},{label:'访问人数',data:visitors,backgroundColor:'rgba(16,185,129,0.8)',borderColor:'rgba(16,185,129,1)',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}})}catch(e){console.error('渲染小时图表失败:',e)}}
-function updateDailyChart(data,days){const ctx=document.getElementById('dailyChart');if(!ctx)return;const labels=data.map(d=>d.date?d.date.slice(5):'');const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);const downloads=data.map(d=>d.downloads||0);if(window.dailyChartInstance)window.dailyChartInstance.destroy();try{window.dailyChartInstance=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'访问次数',data:views,borderColor:'rgba(37,99,235,1)',backgroundColor:'rgba(37,99,235,0.1)',fill:true,tension:.3},{label:'访问人数',data:visitors,borderColor:'rgba(16,185,129,1)',backgroundColor:'rgba(16,185,129,0.1)',fill:true,tension:.3},{label:'下载次数',data:downloads,borderColor:'rgba(245,158,11,1)',backgroundColor:'rgba(245,158,11,0.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}})}catch(e){console.error('渲染日图表失败:',e)}}
-function updatePageTable(data){const tbody=document.getElementById('pageStatsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="4" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\`<tr><td title="\${item.page_url}">\${item.page_url.length>40?item.page_url.slice(0,40)+'...':item.page_url}</td><td>\${item.views}</td><td>\${item.visitors}</td><td>\${item.avg_duration}s</td></tr>\`).join('')}
-function updateDownloadTable(data){const tbody=document.getElementById('downloadStatsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="2" class="text-center">暂无下载数据</td></tr>';return}tbody.innerHTML=data.map(item=>\`<tr><td>\${item.download_item}</td><td><strong>\${item.count}</strong> 次</td></tr>\`).join('')}
-function updateLocationTable(data){const tbody=document.getElementById('locationStatsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="3" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\`<tr><td>\${item.location}</td><td>\${item.visitors}</td><td>\${item.views}</td></tr>\`).join('')}
-function updateRecentTable(data){const tbody=document.getElementById('recentVisitsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="6" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\`<tr><td>\${item.ip_address}</td><td>\${item.ip_location||'未知'}</td><td title="\${item.page_url}">\${item.page_url.length>30?item.page_url.slice(0,30)+'...':item.page_url}</td><td>\${formatDate(item.visit_time)}</td><td>\${item.duration}s</td><td>\${item.is_download?'<span class="badge badge-success">下载</span>':'<span class="badge">浏览</span>'}</td></tr>\`).join('')}
-let currentSort={field:'visit_count',order:'desc'};
-async function loadIPList(){const tbody=document.getElementById('ipListBody');if(!tbody)return;tbody.innerHTML='<tr><td colspan="5" class="text-center">加载中...</td></tr>';const location=document.getElementById('filterLocation')?document.getElementById('filterLocation').value:'';const download=document.getElementById('filterDownload')?document.getElementById('filterDownload').value:'';const url='/admin/api/ips?limit=200&location='+encodeURIComponent(location)+'&download='+encodeURIComponent(download);try{const res=await fetch(url);if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();renderIPTable(data);const totalEl=document.getElementById('ipTotalCount');if(totalEl)totalEl.textContent=data.length}catch(e){console.error('加载 IP 列表失败:',e);tbody.innerHTML='<tr><td colspan="5" class="text-center" style="color:red;">加载失败，请刷新重试</td></tr>'}}
-function renderIPTable(data){const tbody=document.getElementById('ipListBody');if(!tbody)return;data.sort((a,b)=>{let valA=a[currentSort.field];let valB=b[currentSort.field];if(typeof valA==='string')valA=valA.toLowerCase();if(typeof valB==='string')valB=valB.toLowerCase();if(valA<valB)return currentSort.order==='asc'?-1:1;if(valA>valB)return currentSort.order==='asc'?1:-1;return 0});tbody.innerHTML=data.map(item=>\`<tr><td><code>\${item.ip_address}</code></td><td>\${item.location||'未知'}</td><td><strong>\${item.visit_count}</strong></td><td>\${formatDate(item.last_visit)}</td><td>\${item.downloads.length>0?item.downloads.join(', '):'-'}</td></tr>\`).join('')}
-function sortIPList(field){if(currentSort.field===field){currentSort.order=currentSort.order==='asc'?'desc':'asc'}else{currentSort.field=field;currentSort.order='desc'}document.querySelectorAll('.sort-icon').forEach(el=>{el.classList.remove('active');el.textContent='⇅'});const activeIcon=document.querySelector('[data-sort="'+field+'"]');if(activeIcon){activeIcon.classList.add('active');activeIcon.textContent=currentSort.order==='asc'?'↑':'↓'}loadIPList()}
-document.addEventListener('DOMContentLoaded',function(){if(document.getElementById('total-unique')){loadStats();setInterval(loadStats,30000)}if(document.getElementById('pageStatsBody')){loadStats();setInterval(loadStats,30000)}if(document.getElementById('ipListBody')){loadIPList();const locEl=document.getElementById('filterLocation');const downEl=document.getElementById('filterDownload');if(locEl)locEl.addEventListener('input',loadIPList);if(downEl)downEl.addEventListener('input',loadIPList)}});`;
+    // CORS 头
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    // 静态资源
+    if (path.startsWith('/static/')) {
+      return serveStatic(path, corsHeaders);
+    }
+
+    // ===== 认证 API（不需要登录） =====
+    if (path === '/api/auth/login' && request.method === 'POST') {
+      return handleLoginApi(request, env, corsHeaders);
+    }
+    if (path === '/api/auth/logout' && request.method === 'POST') {
+      return handleLogoutApi(request, env, corsHeaders);
+    }
+
+    // ===== 用户管理 API（需要登录） =====
+    if (path === '/admin/api/users' && request.method === 'GET') {
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      return handleUserListApi(request, env, corsHeaders);
+    }
+    if (path === '/admin/api/users' && request.method === 'POST') {
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      return handleUserCreateApi(request, env, corsHeaders);
+    }
+    if (path === '/admin/api/users' && request.method === 'DELETE') {
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      return handleUserDeleteApi(request, env, corsHeaders);
+    }
+    if (path === '/admin/api/users' && request.method === 'PUT') {
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      return handleUserUpdateApi(request, env, corsHeaders);
+    }
+
+    // ===== 管理后台页面（需要登录验证） =====
+    if (path === '/admin' || path === '/admin/' || path === '/admin/stats' || path === '/admin/ips' || path === '/admin/users') {
+      const token = getTokenFromCookie(request);
+      const currentUserId = await verifySession(env, token);
+      if (!currentUserId) {
+        return new Response(renderLoginPage(), {
+          status: 401,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      
+      if (path === '/admin/stats') {
+        return new Response(renderStats(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      if (path === '/admin/ips') {
+        return new Response(renderIpList(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      if (path === '/admin/users') {
+        return new Response(renderUserManage(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      // 默认 /admin
+      return new Response(renderDashboard(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+      });
+    }
+
+    // API 路由（需要登录验证）
+    if (path.startsWith('/admin/api/')) {
+      const token = getTokenFromCookie(request);
+      const currentUserId = await verifySession(env, token);
+      if (!currentUserId) {
+        return new Response(JSON.stringify({ error: '未登录' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+      return handleAdminApi(request, env, corsHeaders);
+    }
+
+    // 追踪接口
+    if (path === '/track' && request.method === 'POST') {
+      return handleTrack(request, env, corsHeaders);
+    }
+    if (path === '/track/view') {
+      return handleTrackView(corsHeaders);
+    }
+
+    // 根路径返回管理后台（需要登录）
+    if (path === '/' || path === '') {
+      const token = getTokenFromCookie(request);
+      const currentUserId = await verifySession(env, token);
+      if (!currentUserId) {
+        return new Response(renderLoginPage(), {
+          status: 401,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      return new Response(renderDashboard(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+      });
+    }
+
+    // 默认响应
+    return new Response('Hello AVL Code Worker!', {
+      headers: { 'Content-Type': 'text/plain', ...corsHeaders }
+    });
+  }
+};
