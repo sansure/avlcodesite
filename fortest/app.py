@@ -15,6 +15,7 @@ AVL Code 站长统计 - 纯静态测试站点 (fottest)
 import http.server
 import json
 import os
+import socketserver
 import urllib.request
 from urllib.parse import urlparse
 
@@ -157,7 +158,7 @@ class TestHandler(http.server.BaseHTTPRequestHandler):
         self.send_error(404)
 
 
-class ThreadedHTTPServer(http.server.ThreadingMixIn, http.server.HTTPServer):
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
 
