@@ -6,7 +6,7 @@ import json
 import sys
 
 BASE_URL = "http://localhost:8901"
-STATS_SERVER = "https://stats-tracker.sansure-huang.workers.dev"
+STATS_SERVER = "https://site.avlcodesite.xyz"
 
 results = []
 
@@ -59,18 +59,14 @@ test_url("/static/js/tracker.js", expected_code=200)
 code, _ = test_url("/goto-stats", expected_code=302)
 test_url("/download/software1", method="POST", expected_code=200)
 
-print("=== Results ===")
+print("\n=== Results ===")
 for r in results:
-    print(f"{r['method']} {r['path']}: HTTP {r['code']} [{r['status']}]")
-    if r['content_type']:
-        print(f"  Content-Type: {r['content_type']}")
-    if r['redirect'] and r['redirect'] != BASE_URL + r['path']:
-        print(f"  Redirect: {r['redirect']}")
+    print(f"[{r['status']}] {r['method']} {r['path']} -> {r['code']}")
     if r['check_contains'] is not None:
-        found = r['contains']
-        print(f"  Contains stats server: {'YES' if found else 'NO'}")
+        print(f"       contains stats server: {r['contains']}")
 
 # Summary
 passed = sum(1 for r in results if r['status'] == 'PASS')
 failed = sum(1 for r in results if r['status'] == 'FAIL')
-print(f"\n=== Summary: {passed} passed, {failed} failed ===")
+print(f"\nTotal: {len(results)}, Passed: {passed}, Failed: {failed}")
+sys.exit(0 if failed == 0 else 1)
