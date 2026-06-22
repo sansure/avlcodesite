@@ -1182,6 +1182,157 @@ function renderUserManage() {
 </body>
 </html>`;
 }
+function renderTest() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>演示数据 - AVL Code 站长统计</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .demo-banner { background: #fef3c7; color: #92400e; padding: 12px 16px; border-radius: 8px; margin-bottom: 24px; border: 1px solid #f59e0b; font-weight: 500; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 220px; padding: 16px 0; }
+    .bar { flex: 1; background: rgba(37,99,235,0.8); border-radius: 4px 4px 0 0; min-height: 4px; position: relative; transition: opacity .2s; }
+    .bar:hover { opacity: .8; }
+    .bar-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--avl-text-secondary); white-space: nowrap; }
+    .bar-value { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--avl-text); }
+    .line-chart { display: flex; align-items: flex-end; gap: 4px; height: 220px; padding: 16px 0; border-bottom: 1px solid var(--avl-border); }
+    .line-point { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+    .line-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--avl-primary); margin-bottom: 4px; }
+    .line-bar { width: 6px; background: rgba(37,99,235,0.2); border-radius: 3px 3px 0 0; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="navbar-brand">
+      <img src="/static/img/avl-code-logo.png" alt="AVL Code" style="height:28px;">
+      <span>站长统计 · 演示</span>
+    </a>
+  </nav>
+  <div class="container">
+    <div class="demo-banner">
+      ⚠️ 本页面仅用于演示站长统计界面效果，所有数据均为模拟数据，不读取数据库。
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">👥</div>
+        <div class="stat-content"><h3>12,345</h3><p>历史独立访客</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">👀</div>
+        <div class="stat-content"><h3>45,678</h3><p>历史总访问</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange">⬇️</div>
+        <div class="stat-content"><h3>890</h3><p>总下载次数</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red">🕒</div>
+        <div class="stat-content"><h3>1,234 / 5,678</h3><p>今日访客 / 访问</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">24 小时访问趋势（演示数据）</div>
+      <div class="bar-chart" id="hourlyChart"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">近 7 天访问趋势（演示数据）</div>
+      <div class="line-chart" id="dailyChart"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">页面访问时长 Top 5（演示数据）</div>
+      <div class="table-container">
+        <table><thead><tr><th>页面</th><th>访问次数</th><th>访问人数</th><th>平均停留</th></tr></thead>
+        <tbody>
+          <tr><td>/download/avlcode</td><td>3,210</td><td>1,805</td><td>42s</td></tr>
+          <tr><td>/products</td><td>2,156</td><td>1,432</td><td>68s</td></tr>
+          <tr><td>/docs</td><td>1,876</td><td>1,203</td><td>95s</td></tr>
+          <tr><td>/</td><td>1,543</td><td>1,102</td><td>35s</td></tr>
+          <tr><td>/about</td><td>987</td><td>765</td><td>28s</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:24px;">
+      <div class="card">
+        <div class="card-header">下载统计（演示数据）</div>
+        <div class="table-container">
+          <table><thead><tr><th>软件</th><th>下载次数</th></tr></thead>
+          <tbody>
+            <tr><td>AVL Code Windows 版</td><td>456</td></tr>
+            <tr><td>AVL Code macOS 版</td><td>234</td></tr>
+            <tr><td>规则库 2024-06</td><td>198</td></tr>
+            <tr><td>SDK 开发包</td><td>102</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">IP 属地 Top 5（演示数据）</div>
+        <div class="table-container">
+          <table><thead><tr><th>地区</th><th>访客</th><th>访问</th></tr></thead>
+          <tbody>
+            <tr><td>中国 北京</td><td>2,341</td><td>5,678</td></tr>
+            <tr><td>中国 上海</td><td>1,876</td><td>4,321</td></tr>
+            <tr><td>中国 广东</td><td>1,543</td><td>3,654</td></tr>
+            <tr><td>中国 浙江</td><td>987</td><td>2,109</td></tr>
+            <tr><td>美国 加利福尼亚</td><td>432</td><td>876</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">最近访问记录（演示数据）</div>
+      <div class="table-container">
+        <table><thead><tr><th>IP</th><th>属地</th><th>页面</th><th>时间</th><th>类型</th></tr></thead>
+        <tbody>
+          <tr><td>192.168.1.101</td><td>内网IP</td><td>/download/avlcode</td><td>2026-06-22 14:20</td><td><span class="badge badge-success">下载</span></td></tr>
+          <tr><td>203.0.113.45</td><td>中国 北京</td><td>/products</td><td>2026-06-22 14:18</td><td>访问</td></tr>
+          <tr><td>198.51.100.12</td><td>美国 加利福尼亚</td><td>/docs</td><td>2026-06-22 14:15</td><td>访问</td></tr>
+          <tr><td>203.0.113.88</td><td>中国 上海</td><td>/</td><td>2026-06-22 14:12</td><td>访问</td></tr>
+          <tr><td>192.168.1.105</td><td>内网IP</td><td>/download/rules</td><td>2026-06-22 14:10</td><td><span class="badge badge-success">下载</span></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+  <footer class="footer">AVL Code 站长统计 · 演示数据 · 不连接数据库</footer>
+  <script>
+    (function() {
+      var hourly = [120, 95, 80, 150, 210, 180, 240, 310, 290, 260, 230, 190, 170, 160, 180, 220, 280, 320, 290, 250, 200, 160, 130, 110];
+      var maxH = Math.max.apply(null, hourly);
+      var hWrap = document.getElementById('hourlyChart');
+      hourly.forEach(function(v, i) {
+        var pct = (v / maxH * 100).toFixed(1);
+        var bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = pct + '%';
+        bar.title = i + ':00 访问 ' + v;
+        bar.innerHTML = '<span class="bar-value">' + v + '</span><span class="bar-label">' + i + '</span>';
+        hWrap.appendChild(bar);
+      });
+
+      var daily = [320, 410, 380, 450, 520, 490, 560];
+      var maxD = Math.max.apply(null, daily);
+      var dWrap = document.getElementById('dailyChart');
+      var labels = ['06-16', '06-17', '06-18', '06-19', '06-20', '06-21', '06-22'];
+      daily.forEach(function(v, i) {
+        var pct = (v / maxD * 100).toFixed(1);
+        var pt = document.createElement('div');
+        pt.className = 'line-point';
+        pt.title = labels[i] + ' 访问 ' + v;
+        pt.innerHTML = '<div class="line-bar" style="height:' + pct + '%"></div><div class="line-dot"></div><span style="font-size:12px;color:var(--avl-text-secondary);margin-top:4px;">' + labels[i] + '</span>';
+        dWrap.appendChild(pt);
+      });
+    })();
+  </script>
+</body>
+</html>`;
+}
 
 // 功能：访问追踪、IP属地、页面统计、下载统计、管理后台、用户管理
 export default {
@@ -1306,6 +1457,13 @@ export default {
         headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
       });
     }
+    // 演示数据页面（无需登录，不访问数据库）
+    if (path === '/test') {
+      return new Response(renderTest(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+      });
+    }
+
 
     // 默认响应
     return new Response('Hello AVL Code Worker!', {
