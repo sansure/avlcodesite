@@ -178,13 +178,6 @@ function setCookieHeader(token, maxAge = 86400) {
 function clearCookieHeader() {
   return 'admin_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax; Secure';
 }
-  return `admin_token=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
-}
-
-// 清除 Cookie 响应头
-function clearCookieHeader() {
-  return 'admin_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax';
-}
 
 // 检查请求是否已登录，未登录返回登录页面
 async function requireAdmin(request, env, corsHeaders) {
