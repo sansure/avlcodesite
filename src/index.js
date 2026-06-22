@@ -68,7 +68,7 @@ function updateSummaryCards(data){const set=(id,val)=>{const el=document.getElem
 function updateHourlyChart(data,hours){const ctx=document.getElementById('hourlyChart');if(!ctx)return;const showDate=hours&&hours>24;const labels=data.map(d=>{if(!d.hour)return '';if(showDate)return d.hour.slice(5,16);return d.hour.slice(11,16)});const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);if(window.hourlyChartInstance)window.hourlyChartInstance.destroy();try{window.hourlyChartInstance=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:'访问次数',data:views,backgroundColor:'rgba(37,99,235,0.8)',borderColor:'rgba(37,99,235,1)',borderWidth:1,borderRadius:4},{label:'访问人数',data:visitors,backgroundColor:'rgba(16,185,129,0.8)',borderColor:'rgba(16,185,129,1)',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}})}catch(e){console.error('渲染小时图表失败:',e)}}
 function updateDailyChart(data,days){const ctx=document.getElementById('dailyChart');if(!ctx)return;const labels=data.map(d=>d.date?d.date.slice(5):'');const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);const downloads=data.map(d=>d.downloads||0);if(window.dailyChartInstance)window.dailyChartInstance.destroy();try{window.dailyChartInstance=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'访问次数',data:views,borderColor:'rgba(37,99,235,1)',backgroundColor:'rgba(37,99,235,0.1)',fill:true,tension:.3},{label:'访问人数',data:visitors,borderColor:'rgba(16,185,129,1)',backgroundColor:'rgba(16,185,129,0.1)',fill:true,tension:.3},{label:'下载次数',data:downloads,borderColor:'rgba(245,158,11,1)',backgroundColor:'rgba(245,158,11,0.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}})}catch(e){console.error('渲染日图表失败:',e)}}
 function updatePageTable(data){const tbody=document.getElementById('pageStatsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="4" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\
-async function loadUsers(){try{const resp=await fetch('/admin/api/users');const users=await resp.json();const tbody=document.getElementById('userTableBody');if(!tbody)return;if(users.length===0){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary);padding:24px">暂无用户</td></tr>';return}tbody.innerHTML=users.map(u=>'<tr><td>'+u.id+'</td><td>'+u.username+'</td><td>'+formatDate(u.created_at)+'</td><td><button onclick="openEditModal('+u.id+')" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button><button onclick="deleteUser('+u.id+')" class="btn btn-sm btn-danger">删除</button></td></tr>').join('')}catch(e){console.error('加载用户列表失败:',e)}}
+async function loadUsers(){try{const resp=await fetch('/admin/api/users');const users=await resp.json();const tbody=document.getElementById('userTableBody');if(!tbody)return;if(users.length===0){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary);padding:24px">暂无用户</td></tr>';return}tbody.innerHTML=users.map(u=>`<tr><td>\${u.id}</td><td>\${u.username}</td><td>\${formatDate(u.created_at)}</td><td><button onclick="openEditModal(\${u.id})" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button><button onclick="deleteUser(\${u.id})" class="btn btn-sm btn-danger">删除</button></td></tr>`).join('')}catch(e){console.error('加载用户列表失败:',e)}}
 function openCreateModal(){document.getElementById('newUsername').value='';document.getElementById('newPassword').value='';document.getElementById('createModal').classList.add('active')}
 function closeCreateModal(){document.getElementById('createModal').classList.remove('active')}
 async function createUser(){const username=document.getElementById('newUsername').value.trim();const password=document.getElementById('newPassword').value;if(!username||!password)return alert('请填写完整');const resp=await fetch('/admin/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});const data=await resp.json();if(resp.ok){closeCreateModal();loadUsers()}else{alert(data.error||'创建失败')}}
@@ -133,7 +133,7 @@ async function verifySession(env, token) {
 
 // 设置 Cookie 响应头
 function setCookieHeader(token, maxAge = 86400) {
-  return 'admin_token=' + token + '; HttpOnly; Path=/; Max-Age=' + maxAge + '; SameSite=Lax';
+  return `admin_token=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
 }
 
 // 清除 Cookie 响应头
@@ -177,7 +177,7 @@ function renderLoginPage(errorMsg) {
     .login-btn{width:100%;padding:12px;background:var(--avl-primary);color:white;border:none;border-radius:var(--avl-radius);font-size:16px;font-weight:600;cursor:pointer;transition:background .2s}
     .login-btn:hover{background:var(--avl-primary-dark)}
     .login-btn:disabled{opacity:.6;cursor:not-allowed}
-    .error-msg{background:#fee2e2;color:#b91c1c;padding:10px 14px;border-radius:var(--avl-radius);font-size:14px;margin-bottom:20px;display:' + (errorMsg ? 'block' : 'none') + '}
+    .error-msg{background:#fee2e2;color:#b91c1c;padding:10px 14px;border-radius:var(--avl-radius);font-size:14px;margin-bottom:20px;display:${errorMsg ? 'block' : 'none'}}
     .login-footer{text-align:center;margin-top:24px;font-size:13px;color:var(--avl-text-secondary)}
   </style>
 </head>
@@ -189,7 +189,7 @@ function renderLoginPage(errorMsg) {
         <h1>管理员登录</h1>
         <p>AVL Code 站长统计系统</p>
       </div>
-      <div class="error-msg" id="errorMsg">(errorMsg || '')</div>
+      <div class="error-msg" id="errorMsg">${errorMsg || ''}</div>
       <form id="loginForm" onsubmit="return handleLogin(event)">
         <div class="form-group">
           <label for="username">用户名</label>
@@ -892,17 +892,17 @@ function renderUserManage() {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary)">暂无用户</td></tr>';
         return;
       }
-      tbody.innerHTML = users.map(u =>
-        '<tr>' +
-          '<td>' + u.id + '</td>' +
-          '<td>' + u.username + '</td>' +
-          '<td>' + new Date(u.created_at).toLocaleString() + '</td>' +
-          '<td>' +
-            '<button onclick="openEditModal(' + u.id + ", '" + u.username + "')" + '" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>' +
-            '<button onclick="deleteUser(' + u.id + ')" class="btn btn-sm btn-danger">删除</button>' +
-          '</td>' +
-        '</tr>'
-      ).join('');
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${new Date(u.created_at).toLocaleString()}</td>
+          <td>
+            <button onclick="openEditModal(${u.id}, '${u.username}')" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>
+            <button onclick="deleteUser(${u.id})" class="btn btn-sm btn-danger">删除</button>
+          </td>
+        </tr>
+      `).join('');
     }
 
     function openCreateModal() {
