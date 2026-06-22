@@ -320,7 +320,7 @@ async function handleLoginApi(request, env, corsHeaders) {
     ).bind(user.id, token, expiresAt.toISOString()).run();
 
     return new Response(JSON.stringify({ success: true, token }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      headers: { 'Content-Type': 'application/json', 'Set-Cookie': setCookieHeader(token), ...corsHeaders }
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
@@ -337,7 +337,7 @@ async function handleLogoutApi(request, env, corsHeaders) {
       await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
     }
     return new Response(JSON.stringify({ success: true }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      headers: { 'Content-Type': 'application/json', 'Set-Cookie': clearCookieHeader(), ...corsHeaders }
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
