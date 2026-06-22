@@ -185,9 +185,14 @@ async function queryIpLocation(ip, env) {
     // 2. 调用在线 API（ip-api.com，免费版 45 次/分钟，够用）
     let location = '未知';
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const resp = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`, {
         headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
-        signal: AbortSignal.timeout(5000)
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+        headers: { 'User-Agent': 'AVLCode-Stats/1.0' },
       });
       
       if (resp.ok) {
