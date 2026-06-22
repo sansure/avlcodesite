@@ -2,12 +2,12 @@
  * AVL Code 站长统计 - 前端追踪脚本 (纯静态版本)
  * 
  * 追踪数据传输链接直接硬编码，无需服务端动态生成。
- * 统计服务器地址: https://stats-tracker.sansure-huang.workers.dev
+ * 统计服务器地址: https://site.avlcodesite.xyz
  */
 (function() {
     'use strict';
 
-    var STATS_SERVER = 'https://stats-tracker.sansure-huang.workers.dev';
+    var STATS_SERVER = 'https://site.avlcodesite.xyz';
     var TRACK_URL = STATS_SERVER + '/track';
     var VIEW_URL = STATS_SERVER + '/track/view';
 

@@ -10,7 +10,7 @@ import json
 import time
 import sys
 
-STATS_SERVER = 'https://stats-tracker.sansure-huang.workers.dev'
+STATS_SERVER = 'https://site.avlcodesite.xyz'
 
 def test_view_event():
     """测试 1: 发送页面浏览事件 (GET /track/view)"""

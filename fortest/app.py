@@ -25,7 +25,7 @@ STATIC_DIR = os.path.join(DIR, 'static')
 TEMPLATE_DIR = os.path.join(DIR, 'templates')
 
 # 统计服务器地址（与 tracker.js 保持一致）
-STATS_SERVER = os.environ.get('STATS_SERVER', 'https://stats-tracker.sansure-huang.workers.dev')
+STATS_SERVER = os.environ.get('STATS_SERVER', 'https://site.avlcodesite.xyz')
 
 # 静态文件缓存
 static_cache = {}

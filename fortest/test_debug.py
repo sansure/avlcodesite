@@ -6,7 +6,7 @@ import http.client
 import json
 
 BASE_URL = "http://localhost:8901"
-STATS_SERVER = "https://stats-tracker.sansure-huang.workers.dev"
+STATS_SERVER = "https://site.avlcodesite.xyz"
 
 def test_get(url, follow_redirects=True):
     print(f"\n--- Testing GET {url} ---")
