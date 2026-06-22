@@ -76,6 +76,45 @@ function closeEditModal(){document.getElementById('editModal').classList.remove(
 async function updateUser(){const userId=document.getElementById('editUserId').value;const password=document.getElementById('editPassword').value;if(!password||password.length<6)return alert('密码至少6位');const resp=await fetch('/admin/api/users?id='+userId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});const data=await resp.json();if(resp.ok){closeEditModal();loadUsers()}else{alert(data.error||'修改失败')}}
 async function deleteUser(userId){if(!confirm('确定要删除该用户吗？'))return;const resp=await fetch('/admin/api/users?id='+userId,{method:'DELETE'});const data=await resp.json();if(resp.ok){loadUsers()}else{alert(data.error||'删除失败')}}
 async function handleLogout(){await fetch('/api/auth/logout',{method:'POST'});window.location.href='/admin'}
+function updateDownloadTable(data){const tbody=document.getElementById('downloadStatsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="2" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\`<tr><td>\${item.name}</td><td>\${item.count}</td></tr>\`).join('')}
+function updateLocationTable(data){const tbody=document.getElementById('locationStatsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="3" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\`<tr><td>\${item.location}</td><td>\${item.visitors}</td><td>\${item.views}</td></tr>\`).join('')}
+function updateRecentTable(data){const tbody=document.getElementById('recentVisitsBody');if(!tbody)return;if(data.length===0){tbody.innerHTML='<tr><td colspan="6" class="text-center">暂无数据</td></tr>';return}tbody.innerHTML=data.map(item=>\`<tr><td>\${item.ip_address}</td><td>\${item.ip_location || '-'}</td><td>\${item.page_url}</td><td>\${formatDate(item.visit_time)}</td><td>\${item.duration || '-'}</td><td>\${item.is_download ? (item.download_item || '下载') : '访问'}</td></tr>\`).join('')}
+let ipListData = [];
+let ipListSort = { field: 'visit_count', desc: true };
+async function loadIPList() {
+  const loc = document.getElementById('filterLocation') ? document.getElementById('filterLocation').value : '';
+  const dl = document.getElementById('filterDownload') ? document.getElementById('filterDownload').value : '';
+  const url = '/admin/api/ips?limit=100' + (loc ? '&location=' + encodeURIComponent(loc) : '') + (dl ? '&download=' + encodeURIComponent(dl) : '');
+  try {
+    const resp = await fetch(url);
+    ipListData = await resp.json();
+    renderIPList();
+  } catch(e) { console.error('加载IP列表失败:', e); }
+}
+function sortIPList(field) {
+  if (ipListSort.field === field) ipListSort.desc = !ipListSort.desc;
+  else { ipListSort.field = field; ipListSort.desc = true; }
+  ipListData.sort((a, b) => {
+    let av = a[field] || 0, bv = b[field] || 0;
+    if (field === 'last_visit') { av = new Date(av).getTime(); bv = new Date(bv).getTime(); }
+    if (typeof av === 'string') av = av.toLowerCase(), bv = bv.toLowerCase();
+    if (av < bv) return ipListSort.desc ? 1 : -1;
+    if (av > bv) return ipListSort.desc ? -1 : 1;
+    return 0;
+  });
+  renderIPList();
+  document.querySelectorAll('.sort-icon').forEach(el => { el.classList.remove('active'); el.textContent = '⇅'; });
+  const active = document.querySelector('.sort-icon[data-sort="' + field + '"]');
+  if (active) { active.classList.add('active'); active.textContent = ipListSort.desc ? '↓' : '↑'; }
+}
+function renderIPList() {
+  const tbody = document.getElementById('ipListBody');
+  if (!tbody) return;
+  if (ipListData.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center">暂无数据</td></tr>'; return; }
+  tbody.innerHTML = ipListData.map(item => \`<tr><td>\${item.ip_address}</td><td>\${item.location || '-'}</td><td>\${item.visit_count}</td><td>\${formatDate(item.last_visit)}</td><td>\${item.downloads && item.downloads.length ? item.downloads.join(', ') : '-'}</td></tr>\`).join('');
+  const totalEl = document.getElementById('ipTotalCount');
+  if (totalEl) totalEl.textContent = ipListData.length;
+}
 `;
 
 // ==================== 密码验证与 Session 管理 ====================
@@ -132,6 +171,13 @@ async function verifySession(env, token) {
 
 // 设置 Cookie 响应头
 function setCookieHeader(token, maxAge = 86400) {
+  return `admin_token=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`;
+}
+
+// 清除 Cookie 响应头
+function clearCookieHeader() {
+  return 'admin_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax; Secure';
+}
   return `admin_token=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
 }
 
@@ -347,6 +393,100 @@ async function handleLogoutApi(request, env, corsHeaders) {
   }
 }
 
+
+
+// ==================== 统计数据查询 ====================
+async function getStatsSummary(env) {
+  const [totalUnique, totalViews, totalDownloads, dailyUnique, dailyViews] = await Promise.all([
+    env.DB.prepare('SELECT COUNT(DISTINCT ip_address) as c FROM visits').first().then(r => r.c),
+    env.DB.prepare('SELECT COUNT(*) as c FROM visits').first().then(r => r.c),
+    env.DB.prepare('SELECT COUNT(*) as c FROM visits WHERE is_download=1').first().then(r => r.c),
+    env.DB.prepare("SELECT COUNT(DISTINCT ip_address) as c FROM visits WHERE visit_time >= datetime('now', '-1 day')").first().then(r => r.c),
+    env.DB.prepare("SELECT COUNT(*) as c FROM visits WHERE visit_time >= datetime('now', '-1 day')").first().then(r => r.c)
+  ]);
+  return {
+    total_unique: totalUnique || 0,
+    total_views: totalViews || 0,
+    total_downloads: totalDownloads || 0,
+    daily_unique: dailyUnique || 0,
+    daily_views: dailyViews || 0
+  };
+}
+
+async function getHourlyStats(env, hours) {
+  const start = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const { results } = await env.DB.prepare(
+    "SELECT strftime('%Y-%m-%d %H:00:00', visit_time) as hour, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors FROM visits WHERE visit_time >= ? GROUP BY hour ORDER BY hour ASC"
+  ).bind(start).all();
+  return results.map(r => ({ hour: r.hour, views: r.views || 0, visitors: r.visitors || 0 }));
+}
+
+async function getDailyStats(env, days) {
+  const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { results } = await env.DB.prepare(
+    "SELECT DATE(visit_time) as date, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, SUM(CASE WHEN is_download=1 THEN 1 ELSE 0 END) as downloads FROM visits WHERE DATE(visit_time) >= ? GROUP BY DATE(visit_time) ORDER BY date ASC"
+  ).bind(start).all();
+  return results.map(r => ({ date: r.date, views: r.views || 0, visitors: r.visitors || 0, downloads: r.downloads || 0 }));
+}
+
+async function getPageStats(env, days) {
+  const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { results } = await env.DB.prepare(
+    "SELECT page_url as page, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, AVG(duration) as avg_time FROM visits WHERE DATE(visit_time) >= ? GROUP BY page_url ORDER BY views DESC"
+  ).bind(start).all();
+  return results.map(r => ({ page: r.page, views: r.views || 0, visitors: r.visitors || 0, avg_time: r.avg_time ? Math.round(r.avg_time * 10) / 10 : 0 }));
+}
+
+async function getDownloadStats(env, days) {
+  const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { results } = await env.DB.prepare(
+    "SELECT download_item as name, COUNT(*) as count FROM visits WHERE DATE(visit_time) >= ? AND is_download=1 AND download_item != '' GROUP BY download_item ORDER BY count DESC"
+  ).bind(start).all();
+  return results.map(r => ({ name: r.name, count: r.count || 0 }));
+}
+
+async function getLocationStats(env, days) {
+  const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { results } = await env.DB.prepare(
+    "SELECT ip_location as location, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors FROM visits WHERE DATE(visit_time) >= ? AND ip_location != '' GROUP BY ip_location ORDER BY visitors DESC"
+  ).bind(start).all();
+  return results.map(r => ({ location: r.location, views: r.views || 0, visitors: r.visitors || 0 }));
+}
+
+async function getIpList(env, limit, offset, locationFilter, downloadFilter) {
+  let query = `
+    SELECT ip_address, ip_location, COUNT(*) as visit_count, MAX(visit_time) as last_visit,
+           GROUP_CONCAT(DISTINCT CASE WHEN is_download=1 AND download_item!='' THEN download_item END) as downloads
+    FROM visits WHERE 1=1
+  `;
+  const params = [];
+  if (locationFilter) {
+    query += ' AND ip_location LIKE ?';
+    params.push(`%${locationFilter}%`);
+  }
+  if (downloadFilter) {
+    query += ' AND download_item LIKE ?';
+    params.push(`%${downloadFilter}%`);
+  }
+  query += ' GROUP BY ip_address, ip_location ORDER BY visit_count DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+  const { results } = await env.DB.prepare(query).bind(...params).all();
+  return results.map(r => {
+    const downloads = r.downloads ? r.downloads.split(',').filter(d => d) : [];
+    return { ip_address: r.ip_address, location: r.ip_location, visit_count: r.visit_count, last_visit: r.last_visit, downloads };
+  });
+}
+
+async function getRecentVisits(env, limit) {
+  const { results } = await env.DB.prepare(
+    'SELECT id, ip_address, ip_location, page_url, visit_time, duration, is_download, download_item FROM visits ORDER BY visit_time DESC LIMIT ?'
+  ).bind(limit).all();
+  return results.map(r => ({
+    id: r.id, ip_address: r.ip_address, ip_location: r.ip_location,
+    page_url: r.page_url, visit_time: r.visit_time, duration: r.duration || 0,
+    is_download: r.is_download, download_item: r.download_item || ''
+  }));
+}
 
 // ==================== 管理后台 API ====================
 async function handleAdminApi(request, env, corsHeaders) {
@@ -611,6 +751,8 @@ function renderDashboard() {
       <li><a href="/admin" class="active">概览</a></li>
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
+      <li><a href="/admin/users">用户管理</a></li>
+      <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
     </ul>
   </nav>
   <div class="container">
@@ -660,6 +802,7 @@ function renderDashboard() {
       document.getElementById('dailyRangeLabel').textContent = label;
       fetch('/admin/api/daily?days=' + days).then(r => r.json()).then(data => updateDailyChart(data, days));
     }
+    document.addEventListener('DOMContentLoaded', function() { loadStats(); });
   </script>
 </body>
 </html>`;
@@ -683,6 +826,8 @@ function renderDashboard() {
       <li><a href="/admin">概览</a></li>
       <li><a href="/admin/stats" class="active">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
+      <li><a href="/admin/users">用户管理</a></li>
+      <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
     </ul>
   </nav>
   <div class="container">
@@ -754,6 +899,8 @@ function renderDashboard() {
       <li><a href="/admin">概览</a></li>
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips" class="active">IP 列表</a></li>
+      <li><a href="/admin/users">用户管理</a></li>
+      <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
     </ul>
   </nav>
   <div class="container">
@@ -782,6 +929,9 @@ function renderDashboard() {
   </div>
   <footer class="footer">AVL Code 站长统计系统 · Powered by Cloudflare Workers + D1</footer>
   <script src="/static/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() { loadIPList(); });
+  </script>
 </body>
 </html>`;
 }
