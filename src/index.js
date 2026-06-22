@@ -133,7 +133,7 @@ async function verifySession(env, token) {
 
 // 设置 Cookie 响应头
 function setCookieHeader(token, maxAge = 86400) {
-  return `admin_token=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+  return 'admin_token=' + token + '; HttpOnly; Path=/; Max-Age=' + maxAge + '; SameSite=Lax';
 }
 
 // 清除 Cookie 响应头
@@ -177,7 +177,7 @@ function renderLoginPage(errorMsg) {
     .login-btn{width:100%;padding:12px;background:var(--avl-primary);color:white;border:none;border-radius:var(--avl-radius);font-size:16px;font-weight:600;cursor:pointer;transition:background .2s}
     .login-btn:hover{background:var(--avl-primary-dark)}
     .login-btn:disabled{opacity:.6;cursor:not-allowed}
-    .error-msg{background:#fee2e2;color:#b91c1c;padding:10px 14px;border-radius:var(--avl-radius);font-size:14px;margin-bottom:20px;display:${errorMsg ? 'block' : 'none'}}
+    .error-msg{background:#fee2e2;color:#b91c1c;padding:10px 14px;border-radius:var(--avl-radius);font-size:14px;margin-bottom:20px;display:' + (errorMsg ? 'block' : 'none') + '}
     .login-footer{text-align:center;margin-top:24px;font-size:13px;color:var(--avl-text-secondary)}
   </style>
 </head>
@@ -189,7 +189,7 @@ function renderLoginPage(errorMsg) {
         <h1>管理员登录</h1>
         <p>AVL Code 站长统计系统</p>
       </div>
-      <div class="error-msg" id="errorMsg">${errorMsg || ''}</div>
+      <div class="error-msg" id="errorMsg">(errorMsg || '')</div>
       <form id="loginForm" onsubmit="return handleLogin(event)">
         <div class="form-group">
           <label for="username">用户名</label>
@@ -892,17 +892,17 @@ function renderUserManage() {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary)">暂无用户</td></tr>';
         return;
       }
-      tbody.innerHTML = users.map(u => `
-        <tr>
-          <td>${u.id}</td>
-          <td>${u.username}</td>
-          <td>${new Date(u.created_at).toLocaleString()}</td>
-          <td>
-            <button onclick="openEditModal(${u.id}, '${u.username}')" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>
-            <button onclick="deleteUser(${u.id})" class="btn btn-sm btn-danger">删除</button>
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = users.map(u =>
+        '<tr>' +
+          '<td>' + u.id + '</td>' +
+          '<td>' + u.username + '</td>' +
+          '<td>' + new Date(u.created_at).toLocaleString() + '</td>' +
+          '<td>' +
+            '<button onclick="openEditModal(' + u.id + ", '" + u.username + "')" + '" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>' +
+            '<button onclick="deleteUser(' + u.id + ')" class="btn btn-sm btn-danger">删除</button>' +
+          '</td>' +
+        '</tr>'
+      ).join('');
     }
 
     function openCreateModal() {
