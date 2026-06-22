@@ -98,6 +98,9 @@ CREATE TABLE IF NOT EXISTS geo_cache (
 https://stats-tracker.你的域名.workers.dev/admin
 ```
 
+
+> 最后更新：2026-06-22 11:26 CST
+
 - 概览页面应显示 5 个统计卡片
 - 详细统计页面应显示页面/下载/属地表格
 - IP 列表页面应显示 IP 明细
