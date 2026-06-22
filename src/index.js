@@ -891,17 +891,17 @@ function renderUserManage() {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary)">暂无用户</td></tr>';
         return;
       }
-      tbody.innerHTML = users.map(u => `
+      tbody.innerHTML = users.map(u => \
         <tr>
-          <td>${u.id}</td>
-          <td>${u.username}</td>
-          <td>${new Date(u.created_at).toLocaleString()}</td>
+          <td>\${u.id}</td>
+          <td>\${u.username}</td>
+          <td>\${new Date(u.created_at).toLocaleString()}</td>
           <td>
-            <button onclick="openEditModal(${u.id}, '${u.username}')" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>
-            <button onclick="deleteUser(${u.id})" class="btn btn-sm btn-danger">删除</button>
+            <button onclick="openEditModal(\${u.id}, '\${u.username}')" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>
+            <button onclick="deleteUser(\${u.id})" class="btn btn-sm btn-danger">删除</button>
           </td>
         </tr>
-      `).join('');
+      \`).join('');
     }
 
     function openCreateModal() {
