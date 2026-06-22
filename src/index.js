@@ -260,43 +260,6 @@ export default {
         headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
       });
     }
-    // 管理后台页面
-    if (path === '/admin' || path === '/admin/') {
-      return new Response(renderDashboard(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-    if (path === '/admin/stats') {
-      return new Response(renderStats(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-    if (path === '/admin/ips') {
-      return new Response(renderIpList(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-
-    // API 路由
-    if (path.startsWith('/admin/api/')) {
-      return handleAdminApi(request, env, corsHeaders);
-    }
-
-    // 追踪接口
-    if (path === '/track' && request.method === 'POST') {
-      return handleTrack(request, env, corsHeaders);
-    }
-    if (path === '/track/view') {
-      return handleTrackView(corsHeaders);
-    }
-
-    // 根路径返回管理后台
-    if (path === '/' || path === '') {
-      return new Response(renderDashboard(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
-      });
-    }
-
     // 默认响应
     return new Response('Hello AVL Code Worker!', {
       headers: { 'Content-Type': 'text/plain', ...corsHeaders }
