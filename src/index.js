@@ -1,4 +1,171 @@
 // AVL Code 站长统计 - Cloudflare Workers + D1 版本
+
+// ==================== 密码验证与 Session 管理 ====================
+// PBKDF2-SHA256 密码哈希
+async function hashPassword(password, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, 256
+  );
+  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 生成随机 Token
+function generateToken() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  const array = new Uint8Array(64);
+  crypto.getRandomValues(array);
+  for (let i = 0; i < 64; i++) {
+    token += chars[array[i] % chars.length];
+  }
+  return 'sess_' + token;
+}
+
+// 从 Cookie 中获取 Token
+function getTokenFromCookie(request) {
+  const cookie = request.headers.get('Cookie') || '';
+  const match = cookie.match(/(?:^|;\s*)admin_token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+// 验证 Session Token（返回 user_id 或 null）
+async function verifySession(env, token) {
+  if (!token) return null;
+  try {
+    const row = await env.DB.prepare(
+      'SELECT user_id, expires_at FROM sessions WHERE token = ?'
+    ).bind(token).first();
+    if (!row) return null;
+    if (new Date(row.expires_at) < new Date()) {
+      // Token 过期，清理
+      await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
+      return null;
+    }
+    return row.user_id;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 设置 Cookie 响应头
+function setCookieHeader(token, maxAge = 86400) {
+  return `admin_token=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+}
+
+// 清除 Cookie 响应头
+function clearCookieHeader() {
+  return 'admin_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax';
+}
+
+// 检查请求是否已登录，未登录返回登录页面
+async function requireAdmin(request, env, corsHeaders) {
+  const token = getTokenFromCookie(request);
+  const userId = await verifySession(env, token);
+  if (!userId) {
+    return new Response(renderLoginPage(), {
+      status: 401,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+    });
+  }
+  return null; // 已登录
+}
+
+// 登录页面 HTML
+function renderLoginPage(errorMsg) {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员登录 - AVL Code 站长统计</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .login-wrapper{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--avl-bg);padding:24px}
+    .login-card{background:var(--avl-surface);border-radius:var(--avl-radius);box-shadow:0 4px 24px rgba(0,0,0,0.12);padding:40px;width:100%;max-width:400px}
+    .login-logo{text-align:center;margin-bottom:32px}
+    .login-logo img{height:40px;margin-bottom:12px}
+    .login-logo h1{font-size:22px;font-weight:700;color:var(--avl-text)}
+    .login-logo p{font-size:14px;color:var(--avl-text-secondary);margin-top:4px}
+    .form-group{margin-bottom:20px}
+    .form-group label{display:block;font-size:14px;font-weight:500;color:var(--avl-text);margin-bottom:6px}
+    .form-group input{width:100%;padding:10px 14px;border:1px solid var(--avl-border);border-radius:var(--avl-radius);font-size:15px;outline:none;transition:border-color .2s}
+    .form-group input:focus{border-color:var(--avl-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .login-btn{width:100%;padding:12px;background:var(--avl-primary);color:white;border:none;border-radius:var(--avl-radius);font-size:16px;font-weight:600;cursor:pointer;transition:background .2s}
+    .login-btn:hover{background:var(--avl-primary-dark)}
+    .login-btn:disabled{opacity:.6;cursor:not-allowed}
+    .error-msg{background:#fee2e2;color:#b91c1c;padding:10px 14px;border-radius:var(--avl-radius);font-size:14px;margin-bottom:20px;display:${errorMsg ? 'block' : 'none'}}
+    .login-footer{text-align:center;margin-top:24px;font-size:13px;color:var(--avl-text-secondary)}
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="/static/img/avl-code-logo.png" alt="AVL Code">
+        <h1>管理员登录</h1>
+        <p>AVL Code 站长统计系统</p>
+      </div>
+      <div class="error-msg" id="errorMsg">${errorMsg || ''}</div>
+      <form id="loginForm" onsubmit="return handleLogin(event)">
+        <div class="form-group">
+          <label for="username">用户名</label>
+          <input type="text" id="username" name="username" placeholder="请输入用户名" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" name="password" placeholder="请输入密码" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="login-btn" id="loginBtn">登 录</button>
+      </form>
+      <div class="login-footer">
+        &copy; 2024 AVL Code · Powered by Cloudflare Workers
+      </div>
+    </div>
+  </div>
+  <script>
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      const errEl = document.getElementById('errorMsg');
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+      errEl.style.display = 'none';
+      try {
+        const resp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value
+          })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+          window.location.href = '/admin';
+        } else {
+          errEl.textContent = data.error || '用户名或密码错误';
+          errEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '登 录';
+        }
+      } catch(e) {
+        errEl.textContent = '网络错误，请重试';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '登 录';
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>`;
+}
+
 // 功能：访问追踪、IP属地、页面统计、下载统计、管理后台
 
 export default {
@@ -22,6 +189,77 @@ export default {
       return serveStatic(path, corsHeaders);
     }
 
+    // ===== 认证 API（不需要登录） =====
+    if (path === '/api/auth/login' && request.method === 'POST') {
+      return handleLoginApi(request, env, corsHeaders);
+    }
+    if (path === '/api/auth/logout' && request.method === 'POST') {
+      return handleLogoutApi(request, env, corsHeaders);
+    }
+
+    // ===== 管理后台页面（需要登录验证） =====
+    if (path === '/admin' || path === '/admin/' || path === '/admin/stats' || path === '/admin/ips') {
+      // 检查登录状态
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) {
+        return new Response(renderLoginPage(), {
+          status: 401,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      
+      if (path === '/admin/stats') {
+        return new Response(renderStats(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      if (path === '/admin/ips') {
+        return new Response(renderIpList(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      // 默认 /admin
+      return new Response(renderDashboard(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+      });
+    }
+
+    // API 路由（需要登录验证）
+    if (path.startsWith('/admin/api/')) {
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: '未登录' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+      return handleAdminApi(request, env, corsHeaders);
+    }
+
+    // 追踪接口
+    if (path === '/track' && request.method === 'POST') {
+      return handleTrack(request, env, corsHeaders);
+    }
+    if (path === '/track/view') {
+      return handleTrackView(corsHeaders);
+    }
+
+    // 根路径返回管理后台（需要登录）
+    if (path === '/' || path === '') {
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) {
+        return new Response(renderLoginPage(), {
+          status: 401,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
+      return new Response(renderDashboard(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+      });
+    }
     // 管理后台页面
     if (path === '/admin' || path === '/admin/') {
       return new Response(renderDashboard(), {
@@ -220,6 +458,87 @@ async function queryIpLocation(ip, env) {
     return '未知';
   }
 }
+
+// ==================== 认证 API ====================
+async function handleLoginApi(request, env, corsHeaders) {
+  try {
+    const { username, password } = await request.json();
+    
+    if (!username || !password) {
+      return new Response(JSON.stringify({ success: false, error: '请输入用户名和密码' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // 查询用户
+    const user = await env.DB.prepare(
+      'SELECT id, username, password_hash, salt FROM users WHERE username = ?'
+    ).bind(username).first();
+
+    if (!user) {
+      return new Response(JSON.stringify({ success: false, error: '用户名或密码错误' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // 验证密码
+    const hash = await hashPassword(password, user.salt);
+    if (hash !== user.password_hash) {
+      return new Response(JSON.stringify({ success: false, error: '用户名或密码错误' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // 生成 Session Token（有效期 24 小时）
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 86400000).toISOString();
+    
+    await env.DB.prepare(
+      'INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)'
+    ).bind(user.id, token, expiresAt).run();
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Set-Cookie': setCookieHeader(token),
+        ...corsHeaders
+      }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ success: false, error: '服务器错误: ' + err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+}
+
+async function handleLogoutApi(request, env, corsHeaders) {
+  try {
+    const token = getTokenFromCookie(request);
+    if (token) {
+      await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
+    }
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Set-Cookie': clearCookieHeader(),
+        ...corsHeaders
+      }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+}
+
+
 async function handleAdminApi(request, env, corsHeaders) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -457,6 +776,7 @@ function renderDashboard() {
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
     </ul>
+      <li style="margin-left:auto;"><a href="#" onclick="handleLogout();return false;" style="color:var(--avl-text-secondary);">退出登录</a></li>
   </nav>
   <div class="container">
     <div class="stats-grid">
@@ -505,6 +825,17 @@ function renderDashboard() {
       document.getElementById('dailyRangeLabel').textContent = label;
       fetch('/admin/api/daily?days=' + days).then(r => r.json()).then(data => updateDailyChart(data, days));
     }
+    }
+  </script>
+  <script>
+    async function handleLogout() {
+      if (!confirm('确定要退出登录吗？')) return;
+      try {
+        const resp = await fetch('/api/auth/logout', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) window.location.href = '/admin';
+      } catch(e) { console.error('退出失败:', e); }
+    }
   </script>
 </body>
 </html>`;
@@ -531,6 +862,7 @@ function renderStats() {
       <li><a href="/admin/stats" class="active">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
     </ul>
+      <li style="margin-left:auto;"><a href="#" onclick="handleLogout();return false;" style="color:var(--avl-text-secondary);">退出登录</a></li>
   </nav>
   <div class="container">
     <div class="card">
@@ -578,6 +910,17 @@ function renderStats() {
       }).catch(err => console.error('加载失败:', err));
     }
     document.addEventListener('DOMContentLoaded', function() { updatePageRange(30); });
+    document.addEventListener('DOMContentLoaded', function() { updatePageRange(30); });
+  </script>
+  <script>
+    async function handleLogout() {
+      if (!confirm('确定要退出登录吗？')) return;
+      try {
+        const resp = await fetch('/api/auth/logout', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) window.location.href = '/admin';
+      } catch(e) { console.error('退出失败:', e); }
+    }
   </script>
 </body>
 </html>`;
@@ -604,6 +947,7 @@ function renderIpList() {
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips" class="active">IP 列表</a></li>
     </ul>
+      <li style="margin-left:auto;"><a href="#" onclick="handleLogout();return false;" style="color:var(--avl-text-secondary);">退出登录</a></li>
   </nav>
   <div class="container">
     <div class="card">
@@ -631,6 +975,16 @@ function renderIpList() {
   </div>
   <footer class="footer">AVL Code 站长统计系统 · Powered by Cloudflare Workers + D1</footer>
   <script src="/static/js/main.js"></script>
+  <script>
+    async function handleLogout() {
+      if (!confirm('确定要退出登录吗？')) return;
+      try {
+        const resp = await fetch('/api/auth/logout', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) window.location.href = '/admin';
+      } catch(e) { console.error('退出失败:', e); }
+    }
+  </script>
 </body>
 </html>`;
 }
