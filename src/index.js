@@ -936,61 +936,41 @@ function renderUserManage() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>用户管理 - AVL Code 站长统计</title>
   <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    .user-card{background:var(--avl-surface);border-radius:var(--avl-radius);box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:24px;margin-bottom:24px}
-    .user-table{width:100%;border-collapse:collapse;margin-top:16px}
-    .user-table th,.user-table td{text-align:left;padding:12px;border-bottom:1px solid var(--avl-border)}
-    .user-table th{font-weight:600;color:var(--avl-text-secondary);font-size:13px;text-transform:uppercase}
-    .btn{padding:8px 16px;border:none;border-radius:6px;font-size:14px;cursor:pointer;transition:all .2s}
-    .btn-primary{background:var(--avl-primary);color:#fff}
-    .btn-primary:hover{background:var(--avl-primary-dark)}
-    .btn-danger{background:#ef4444;color:#fff}
-    .btn-danger:hover{background:#dc2626}
-    .btn-sm{padding:6px 12px;font-size:13px}
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center}
-    .modal-overlay.active{display:flex}
-    .modal{background:var(--avl-surface);border-radius:var(--avl-radius);padding:24px;width:90%;max-width:400px}
-    .modal h3{margin-bottom:16px;font-size:18px}
-    .form-group{margin-bottom:16px}
-    .form-group label{display:block;font-size:14px;font-weight:500;margin-bottom:6px}
-    .form-group input{width:100%;padding:10px;border:1px solid var(--avl-border);border-radius:6px;font-size:14px}
-    .modal-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:20px}
-  </style>
 </head>
 <body>
-  <div class="dashboard-wrapper">
-    <nav class="navbar">
-      <div class="nav-brand">
-        <img src="/static/img/avl-code-logo.png" alt="AVL Code" class="nav-logo">
-        <span class="nav-title">AVL Code 站长统计</span>
+  <nav class="navbar">
+    <a href="/admin" class="navbar-brand">
+      <img src="/static/img/avl-code-logo.png" alt="AVL Code" style="height:28px;">
+      <span>站长统计</span>
+    </a>
+    <ul class="navbar-nav">
+      <li><a href="/admin">概览</a></li>
+      <li><a href="/admin/stats">详细统计</a></li>
+      <li><a href="/admin/ips">IP 列表</a></li>
+      <li><a href="/admin/users" class="active">用户管理</a></li>
+      <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
+    </ul>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <span>用户列表</span>
+        <button onclick="openCreateModal()" class="btn btn-primary">+ 新增用户</button>
       </div>
-      <div class="nav-links">
-        <a href="/admin" class="nav-link">仪表盘</a>
-        <a href="/admin/stats" class="nav-link">详细统计</a>
-        <a href="/admin/ips" class="nav-link">IP 列表</a>
-        <a href="/admin/users" class="nav-link active">用户管理</a>
-        <button onclick="handleLogout()" class="btn btn-sm btn-outline">退出登录</button>
-      </div>
-    </nav>
-    <main class="main-content">
-      <div class="user-card">
-        <div class="card-header">
-          <h2>用户列表</h2>
-          <button onclick="openCreateModal()" class="btn btn-primary">+ 新增用户</button>
-        </div>
-        <table class="user-table">
+      <div class="table-container">
+        <table>
           <thead>
             <tr><th>ID</th><th>用户名</th><th>创建时间</th><th>操作</th></tr>
           </thead>
           <tbody id="userTableBody">
-            <tr><td colspan="4" class="text-center" style="color:var(--avl-text-secondary);padding:24px">加载中...</td></tr>
+            <tr><td colspan="4" class="text-center">加载中...</td></tr>
           </tbody>
         </table>
       </div>
-    </main>
+    </div>
   </div>
+  <footer class="footer">AVL Code 站长统计系统 · Powered by Cloudflare Workers + D1</footer>
 
-  <!-- Create User Modal -->
   <div id="createModal" class="modal-overlay">
     <div class="modal">
       <h3>新增用户</h3>
@@ -1009,7 +989,6 @@ function renderUserManage() {
     </div>
   </div>
 
-  <!-- Edit Password Modal -->
   <div id="editModal" class="modal-overlay">
     <div class="modal">
       <h3>修改密码</h3>
@@ -1025,97 +1004,9 @@ function renderUserManage() {
     </div>
   </div>
 
+  <script src="/static/js/main.js"></script>
   <script>
-    async function loadUsers() {
-      const resp = await fetch('/admin/api/users');
-      const users = await resp.json();
-      const tbody = document.getElementById('userTableBody');
-      if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--avl-text-secondary)">暂无用户</td></tr>';
-        return;
-      }
-      tbody.innerHTML = users.map(u => \
-        <tr>
-          <td>\${u.id}</td>
-          <td>\${u.username}</td>
-          <td>\${new Date(u.created_at).toLocaleString()}</td>
-          <td>
-            <button onclick="openEditModal(\${u.id}, '\${u.username}')" class="btn btn-sm btn-primary" style="margin-right:8px">修改密码</button>
-            <button onclick="deleteUser(\${u.id})" class="btn btn-sm btn-danger">删除</button>
-          </td>
-        </tr>
-      \`).join('');
-    }
-
-    function openCreateModal() {
-      document.getElementById('newUsername').value = '';
-      document.getElementById('newPassword').value = '';
-      document.getElementById('createModal').classList.add('active');
-    }
-    function closeCreateModal() {
-      document.getElementById('createModal').classList.remove('active');
-    }
-    async function createUser() {
-      const username = document.getElementById('newUsername').value.trim();
-      const password = document.getElementById('newPassword').value;
-      if (!username || !password) return alert('请填写完整');
-      const resp = await fetch('/admin/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await resp.json();
-      if (resp.ok) {
-        closeCreateModal();
-        loadUsers();
-      } else {
-        alert(data.error || '创建失败');
-      }
-    }
-
-    function openEditModal(userId, username) {
-      document.getElementById('editUserId').value = userId;
-      document.getElementById('editPassword').value = '';
-      document.getElementById('editModal').classList.add('active');
-    }
-    function closeEditModal() {
-      document.getElementById('editModal').classList.remove('active');
-    }
-    async function updateUser() {
-      const userId = document.getElementById('editUserId').value;
-      const password = document.getElementById('editPassword').value;
-      if (!password || password.length < 6) return alert('密码至少6位');
-      const resp = await fetch('/admin/api/users?id=' + userId, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
-      const data = await resp.json();
-      if (resp.ok) {
-        closeEditModal();
-        loadUsers();
-      } else {
-        alert(data.error || '修改失败');
-      }
-    }
-
-    async function deleteUser(userId) {
-      if (!confirm('确定要删除该用户吗？')) return;
-      const resp = await fetch('/admin/api/users?id=' + userId, { method: 'DELETE' });
-      const data = await resp.json();
-      if (resp.ok) {
-        loadUsers();
-      } else {
-        alert(data.error || '删除失败');
-      }
-    }
-
-    async function handleLogout() {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      window.location.href = '/admin';
-    }
-
-    loadUsers();
+    document.addEventListener('DOMContentLoaded', function() { loadUsers(); });
   </script>
 </body>
 </html>`;
