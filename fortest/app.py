@@ -101,7 +101,6 @@ class TestHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(result[0])
                 return
             self.send_error(404)
-            return
 
         # 页面路由 - 纯静态 HTML
         if path == '/' or path == '/index.html':
@@ -141,7 +140,7 @@ class TestHandler(http.server.BaseHTTPRequestHandler):
                 'page_title': '测试站点',
                 'is_download': 1,
                 'download_item': item,
-                'site_id': 'fortest'
+                'site_id': 'avlcode'
             }).encode('utf-8')
             try:
                 req = urllib.request.Request(
