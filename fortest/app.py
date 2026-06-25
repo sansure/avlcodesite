@@ -140,7 +140,8 @@ class TestHandler(http.server.BaseHTTPRequestHandler):
                 'page_url': '/',
                 'page_title': '测试站点',
                 'is_download': 1,
-                'download_item': item
+                'download_item': item,
+                'site_id': 'fortest'
             }).encode('utf-8')
             try:
                 req = urllib.request.Request(

@@ -63,7 +63,16 @@ select.form-control{cursor:pointer}
 
 const JS = `function formatNumber(num){if(num>=10000)return(num/10000).toFixed(1)+'万';return num.toLocaleString()}
 function formatDate(dateStr){if(!dateStr)return '-';const d=new Date(dateStr);return d.toLocaleString('zh-CN')}
-async function loadStats(){try{const[summary,hourly,daily,pages,downloads,locations,recent]=await Promise.all([fetch('/admin/api/summary').then(r=>r.json()).catch(()=>null),fetch('/admin/api/hourly?hours=24').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/daily?days=7').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/pages?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/downloads?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/locations?days=30').then(r=>r.json()).catch(()=>[]),fetch('/admin/api/recent?limit=10').then(r=>r.json()).catch(()=>[])]);if(summary)updateSummaryCards(summary);updateHourlyChart(hourly||[]);updateDailyChart(daily||[]);updatePageTable(pages||[]);updateDownloadTable(downloads||[]);updateLocationTable(locations||[]);updateRecentTable(recent||[])}catch(e){console.error('加载统计数据失败:',e)}}
+function getSelectedSiteId(){return localStorage.getItem('selectedSiteId')||'default'}
+function setSelectedSiteId(siteId){localStorage.setItem('selectedSiteId',siteId);const el=document.getElementById('siteSelector');if(el)el.value=siteId}
+function switchSite(siteId){setSelectedSiteId(siteId);window.location.reload()}
+async function loadSites(){try{const resp=await fetch('/admin/api/sites');const sites=await resp.json();const el=document.getElementById('siteSelector');if(!el)return;const current=getSelectedSiteId();el.innerHTML=sites.map(s=>'<option value="'+s.id+'"'+(s.id===current?' selected':'')+'>'+s.name+'</option>').join('');el.onchange=function(){switchSite(this.value)}}catch(e){console.error('加载站点列表失败:',e)}}
+async function loadSitesTable(){try{const resp=await fetch('/admin/api/sites');const sites=await resp.json();const tbody=document.getElementById('sitesTableBody');if(!tbody)return;if(sites.length===0){tbody.innerHTML='<tr><td colspan="5" class="text-center">暂无站点</td></tr>';return}tbody.innerHTML=sites.map(s=>\`<tr><td>\${s.id}</td><td>\${s.name}</td><td>\${s.token}</td><td>\${formatDate(s.created_at)}</td><td><button onclick="deleteSite('\\${s.id}')" class="btn btn-sm btn-danger" \${s.id==='default'?'disabled':''}>删除</button></td></tr>\`).join('')}catch(e){console.error('加载站点列表失败:',e)}}
+async function createSite(){const nameEl=document.getElementById('newSiteName');const name=nameEl?nameEl.value.trim():'';if(!name)return alert('请输入站点名称');try{const resp=await fetch('/admin/api/sites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const data=await resp.json();if(resp.ok){nameEl.value='';closeSiteModal();loadSitesTable();loadSites()}else{alert(data.error||'创建失败')}}catch(e){alert('创建失败: '+e.message)}}
+async function deleteSite(siteId){if(!confirm('确定要删除该站点吗？相关访问数据将一并删除。'))return;if(siteId==='default')return alert('默认站点不能删除');try{const resp=await fetch('/admin/api/sites?id='+encodeURIComponent(siteId),{method:'DELETE'});const data=await resp.json();if(resp.ok){if(getSelectedSiteId()===siteId)setSelectedSiteId('default');loadSitesTable();loadSites()}else{alert(data.error||'删除失败')}}catch(e){alert('删除失败: '+e.message)}}
+function openSiteModal(){document.getElementById('createSiteModal').classList.add('active')}
+function closeSiteModal(){document.getElementById('createSiteModal').classList.remove('active')}
+async function loadStats(){try{const siteId=getSelectedSiteId();const[summary,hourly,daily,pages,downloads,locations,recent]=await Promise.all([fetch('/admin/api/summary?site_id='+siteId).then(r=>r.json()).catch(()=>null),fetch('/admin/api/hourly?hours=24&site_id='+siteId).then(r=>r.json()).catch(()=>[]),fetch('/admin/api/daily?days=7&site_id='+siteId).then(r=>r.json()).catch(()=>[]),fetch('/admin/api/pages?days=30&site_id='+siteId).then(r=>r.json()).catch(()=>[]),fetch('/admin/api/downloads?days=30&site_id='+siteId).then(r=>r.json()).catch(()=>[]),fetch('/admin/api/locations?days=30&site_id='+siteId).then(r=>r.json()).catch(()=>[]),fetch('/admin/api/recent?limit=10&site_id='+siteId).then(r=>r.json()).catch(()=>[])]);if(summary)updateSummaryCards(summary);updateHourlyChart(hourly||[]);updateDailyChart(daily||[]);updatePageTable(pages||[]);updateDownloadTable(downloads||[]);updateLocationTable(locations||[]);updateRecentTable(recent||[])}catch(e){console.error('加载统计数据失败:',e)}}
 function updateSummaryCards(data){const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=formatNumber(val)};set('total-unique',data.total_unique);set('total-views',data.total_views);set('daily-unique',data.daily_unique);set('daily-views',data.daily_views);set('total-downloads',data.total_downloads)}
 function updateHourlyChart(data,hours){const ctx=document.getElementById('hourlyChart');if(!ctx)return;const showDate=hours&&hours>24;const labels=data.map(d=>{if(!d.hour)return '';if(showDate)return d.hour.slice(5,16);return d.hour.slice(11,16)});const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);if(window.hourlyChartInstance)window.hourlyChartInstance.destroy();try{window.hourlyChartInstance=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:'访问次数',data:views,backgroundColor:'rgba(37,99,235,0.8)',borderColor:'rgba(37,99,235,1)',borderWidth:1,borderRadius:4},{label:'访问人数',data:visitors,backgroundColor:'rgba(16,185,129,0.8)',borderColor:'rgba(16,185,129,1)',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}})}catch(e){console.error('渲染小时图表失败:',e)}}
 function updateDailyChart(data,days){const ctx=document.getElementById('dailyChart');if(!ctx)return;const labels=data.map(d=>d.date?d.date.slice(5):'');const views=data.map(d=>d.views||0);const visitors=data.map(d=>d.visitors||0);const downloads=data.map(d=>d.downloads||0);if(window.dailyChartInstance)window.dailyChartInstance.destroy();try{window.dailyChartInstance=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'访问次数',data:views,borderColor:'rgba(37,99,235,1)',backgroundColor:'rgba(37,99,235,0.1)',fill:true,tension:.3},{label:'访问人数',data:visitors,borderColor:'rgba(16,185,129,1)',backgroundColor:'rgba(16,185,129,0.1)',fill:true,tension:.3},{label:'下载次数',data:downloads,borderColor:'rgba(245,158,11,1)',backgroundColor:'rgba(245,158,11,0.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}})}catch(e){console.error('渲染日图表失败:',e)}}
@@ -84,7 +93,8 @@ let ipListSort = { field: 'visit_count', desc: true };
 async function loadIPList() {
   const loc = document.getElementById('filterLocation') ? document.getElementById('filterLocation').value : '';
   const dl = document.getElementById('filterDownload') ? document.getElementById('filterDownload').value : '';
-  const url = '/admin/api/ips?limit=100' + (loc ? '&location=' + encodeURIComponent(loc) : '') + (dl ? '&download=' + encodeURIComponent(dl) : '');
+  const siteId = getSelectedSiteId();
+  const url = '/admin/api/ips?limit=100&site_id=' + siteId + (loc ? '&location=' + encodeURIComponent(loc) : '') + (dl ? '&download=' + encodeURIComponent(dl) : '');
   try {
     const resp = await fetch(url);
     ipListData = await resp.json();
@@ -115,7 +125,7 @@ function renderIPList() {
   const totalEl = document.getElementById('ipTotalCount');
   if (totalEl) totalEl.textContent = ipListData.length;
 }
-`;
+`
 const TRACKER_JS = `/**
  * AVL Code 站长统计 - 前端追踪脚本
  * 统计服务器地址: https://site.avlcodesite.xyz
@@ -126,12 +136,16 @@ const TRACKER_JS = `/**
     var STATS_SERVER = 'https://site.avlcodesite.xyz';
     var TRACK_URL = STATS_SERVER + '/track';
     var VIEW_URL = STATS_SERVER + '/track/view';
+    var CONFIG = { siteId: '' };
 
     /**
      * 通过 sendBeacon 发送追踪数据（页面卸载时也能可靠发送）
      */
     function sendTrack(data) {
         try {
+            if (CONFIG.siteId) {
+                data.site_id = CONFIG.siteId;
+            }
             var payload = JSON.stringify(data);
             if (navigator.sendBeacon) {
                 navigator.sendBeacon(TRACK_URL, payload);
@@ -151,9 +165,11 @@ const TRACKER_JS = `/**
      */
     function sendView(pageUrl, pageTitle) {
         try {
+            var siteParam = CONFIG.siteId ? '&site_id=' + encodeURIComponent(CONFIG.siteId) : '';
             var img = new Image();
             img.src = VIEW_URL + '?page_url=' + encodeURIComponent(pageUrl || window.location.pathname) +
                       '&page_title=' + encodeURIComponent(pageTitle || document.title) +
+                      siteParam +
                       '&t=' + Date.now();
         } catch(e) {
             console.warn('AVL Stats: 发送浏览事件失败', e);
@@ -162,6 +178,16 @@ const TRACKER_JS = `/**
 
     // 暴露全局 API
     window.AVLStats = {
+        init: function(config) {
+            if (config && config.siteId) {
+                CONFIG.siteId = config.siteId;
+            }
+            if (config && config.server) {
+                STATS_SERVER = config.server;
+                TRACK_URL = STATS_SERVER + '/track';
+                VIEW_URL = STATS_SERVER + '/track/view';
+            }
+        },
         track: sendTrack,
         trackView: sendView,
         trackDownload: function(itemName) {
@@ -192,7 +218,7 @@ const TRACKER_JS = `/**
             });
         }
     });
-})();`;
+})();`
 
 // ==================== 密码验证与 Session 管理 ====================
 // PBKDF2-SHA256 密码哈希
@@ -466,14 +492,66 @@ async function handleLogoutApi(request, env, corsHeaders) {
 
 
 
+// ==================== 站点工具函数 ====================
+async function generateSiteToken() {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return 'tk_' + Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function generateSiteId(name, env) {
+  let base = name
+    .toLowerCase()
+    .replace(/[^\u4e00-\u9fa5a-z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  if (!base) base = 'site';
+
+  let siteId = base;
+  let attempt = 0;
+  while (true) {
+    const existing = await env.DB.prepare('SELECT id FROM sites WHERE id = ?').bind(siteId).first();
+    if (!existing) return siteId;
+    const suffix = Array.from(crypto.getRandomValues(new Uint8Array(2)), b => b.toString(16).padStart(2, '0')).join('');
+    siteId = `${base}-${suffix}`;
+    attempt++;
+    if (attempt > 20) {
+      const rand = Array.from(crypto.getRandomValues(new Uint8Array(4)), b => b.toString(16).padStart(2, '0')).join('');
+      return `${base}-${rand}`;
+    }
+  }
+}
+
+async function createSite(env, name) {
+  const id = await generateSiteId(name, env);
+  const token = await generateSiteToken();
+  await env.DB.prepare('INSERT INTO sites (id, name, token) VALUES (?, ?, ?)').bind(id, name, token).run();
+  return { id, name, token };
+}
+
+async function deleteSite(env, id) {
+  await env.DB.prepare('DELETE FROM visits WHERE site_id = ?').bind(id).run();
+  await env.DB.prepare('DELETE FROM sites WHERE id = ?').bind(id).run();
+  return { status: 'ok' };
+}
+
+async function listSites(env) {
+  const { results } = await env.DB.prepare('SELECT id, name, token, created_at FROM sites ORDER BY created_at DESC').all();
+  return results || [];
+}
+
+async function getSiteById(env, id) {
+  return await env.DB.prepare('SELECT id, name, token FROM sites WHERE id = ?').bind(id).first();
+}
+
 // ==================== 统计数据查询 ====================
-async function getStatsSummary(env) {
+async function getStatsSummary(env, siteId = 'default') {
   const [totalUnique, totalViews, totalDownloads, dailyUnique, dailyViews] = await Promise.all([
-    env.DB.prepare('SELECT COUNT(DISTINCT ip_address) as c FROM visits').first().then(r => r.c),
-    env.DB.prepare('SELECT COUNT(*) as c FROM visits').first().then(r => r.c),
-    env.DB.prepare('SELECT COUNT(*) as c FROM visits WHERE is_download=1').first().then(r => r.c),
-    env.DB.prepare("SELECT COUNT(DISTINCT ip_address) as c FROM visits WHERE visit_time >= datetime('now', '-1 day')").first().then(r => r.c),
-    env.DB.prepare("SELECT COUNT(*) as c FROM visits WHERE visit_time >= datetime('now', '-1 day')").first().then(r => r.c)
+    env.DB.prepare('SELECT COUNT(DISTINCT ip_address) as c FROM visits WHERE site_id = ?').bind(siteId).first().then(r => r.c),
+    env.DB.prepare('SELECT COUNT(*) as c FROM visits WHERE site_id = ?').bind(siteId).first().then(r => r.c),
+    env.DB.prepare('SELECT COUNT(*) as c FROM visits WHERE site_id = ? AND is_download=1').bind(siteId).first().then(r => r.c),
+    env.DB.prepare("SELECT COUNT(DISTINCT ip_address) as c FROM visits WHERE site_id = ? AND visit_time >= datetime('now', '-1 day')").bind(siteId).first().then(r => r.c),
+    env.DB.prepare("SELECT COUNT(*) as c FROM visits WHERE site_id = ? AND visit_time >= datetime('now', '-1 day')").bind(siteId).first().then(r => r.c)
   ]);
   return {
     total_unique: totalUnique || 0,
@@ -484,53 +562,53 @@ async function getStatsSummary(env) {
   };
 }
 
-async function getHourlyStats(env, hours) {
+async function getHourlyStats(env, hours, siteId = 'default') {
   const start = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
   const { results } = await env.DB.prepare(
-    "SELECT strftime('%Y-%m-%d %H:00:00', visit_time) as hour, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors FROM visits WHERE visit_time >= ? GROUP BY hour ORDER BY hour ASC"
-  ).bind(start).all();
+    "SELECT strftime('%Y-%m-%d %H:00:00', visit_time) as hour, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors FROM visits WHERE site_id = ? AND visit_time >= ? GROUP BY hour ORDER BY hour ASC"
+  ).bind(siteId, start).all();
   return results.map(r => ({ hour: r.hour, views: r.views || 0, visitors: r.visitors || 0 }));
 }
 
-async function getDailyStats(env, days) {
+async function getDailyStats(env, days, siteId = 'default') {
   const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { results } = await env.DB.prepare(
-    "SELECT DATE(visit_time) as date, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, SUM(CASE WHEN is_download=1 THEN 1 ELSE 0 END) as downloads FROM visits WHERE DATE(visit_time) >= ? GROUP BY DATE(visit_time) ORDER BY date ASC"
-  ).bind(start).all();
+    "SELECT DATE(visit_time) as date, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, SUM(CASE WHEN is_download=1 THEN 1 ELSE 0 END) as downloads FROM visits WHERE site_id = ? AND DATE(visit_time) >= ? GROUP BY DATE(visit_time) ORDER BY date ASC"
+  ).bind(siteId, start).all();
   return results.map(r => ({ date: r.date, views: r.views || 0, visitors: r.visitors || 0, downloads: r.downloads || 0 }));
 }
 
-async function getPageStats(env, days) {
+async function getPageStats(env, days, siteId = 'default') {
   const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { results } = await env.DB.prepare(
-    "SELECT page_url as page, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, AVG(duration) as avg_time FROM visits WHERE DATE(visit_time) >= ? GROUP BY page_url ORDER BY views DESC"
-  ).bind(start).all();
+    "SELECT page_url as page, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors, AVG(duration) as avg_time FROM visits WHERE site_id = ? AND DATE(visit_time) >= ? GROUP BY page_url ORDER BY views DESC"
+  ).bind(siteId, start).all();
   return results.map(r => ({ page: r.page, views: r.views || 0, visitors: r.visitors || 0, avg_time: r.avg_time ? Math.round(r.avg_time * 10) / 10 : 0 }));
 }
 
-async function getDownloadStats(env, days) {
+async function getDownloadStats(env, days, siteId = 'default') {
   const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { results } = await env.DB.prepare(
-    "SELECT download_item as name, COUNT(*) as count FROM visits WHERE DATE(visit_time) >= ? AND is_download=1 AND download_item != '' GROUP BY download_item ORDER BY count DESC"
-  ).bind(start).all();
+    "SELECT download_item as name, COUNT(*) as count FROM visits WHERE site_id = ? AND DATE(visit_time) >= ? AND is_download=1 AND download_item != '' GROUP BY download_item ORDER BY count DESC"
+  ).bind(siteId, start).all();
   return results.map(r => ({ name: r.name, count: r.count || 0 }));
 }
 
-async function getLocationStats(env, days) {
+async function getLocationStats(env, days, siteId = 'default') {
   const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { results } = await env.DB.prepare(
-    "SELECT ip_location as location, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors FROM visits WHERE DATE(visit_time) >= ? AND ip_location != '' GROUP BY ip_location ORDER BY visitors DESC"
-  ).bind(start).all();
+    "SELECT ip_location as location, COUNT(*) as views, COUNT(DISTINCT ip_address) as visitors FROM visits WHERE site_id = ? AND DATE(visit_time) >= ? AND ip_location != '' GROUP BY ip_location ORDER BY visitors DESC"
+  ).bind(siteId, start).all();
   return results.map(r => ({ location: r.location, views: r.views || 0, visitors: r.visitors || 0 }));
 }
 
-async function getIpList(env, limit, offset, locationFilter, downloadFilter) {
+async function getIpList(env, limit, offset, locationFilter, downloadFilter, siteId = 'default') {
   let query = `
     SELECT ip_address, ip_location, COUNT(*) as visit_count, MAX(visit_time) as last_visit,
            GROUP_CONCAT(DISTINCT CASE WHEN is_download=1 AND download_item!='' THEN download_item END) as downloads
-    FROM visits WHERE 1=1
+    FROM visits WHERE site_id = ?
   `;
-  const params = [];
+  const params = [siteId];
   if (locationFilter) {
     query += ' AND ip_location LIKE ?';
     params.push(`%${locationFilter}%`);
@@ -548,10 +626,10 @@ async function getIpList(env, limit, offset, locationFilter, downloadFilter) {
   });
 }
 
-async function getRecentVisits(env, limit) {
+async function getRecentVisits(env, limit, siteId = 'default') {
   const { results } = await env.DB.prepare(
-    'SELECT id, ip_address, ip_location, page_url, visit_time, duration, is_download, download_item FROM visits ORDER BY visit_time DESC LIMIT ?'
-  ).bind(limit).all();
+    'SELECT id, ip_address, ip_location, page_url, visit_time, duration, is_download, download_item FROM visits WHERE site_id = ? ORDER BY visit_time DESC LIMIT ?'
+  ).bind(siteId, limit).all();
   return results.map(r => ({
     id: r.id, ip_address: r.ip_address, ip_location: r.ip_location,
     page_url: r.page_url, visit_time: r.visit_time, duration: r.duration || 0,
@@ -563,36 +641,37 @@ async function getRecentVisits(env, limit) {
 async function handleAdminApi(request, env, corsHeaders) {
   const url = new URL(request.url);
   const path = url.pathname;
+  const siteId = url.searchParams.get('site_id') || 'default';
   
   try {
     let result;
     
     if (path === '/admin/api/summary') {
-      result = await getStatsSummary(env);
+      result = await getStatsSummary(env, siteId);
     } else if (path === '/admin/api/hourly') {
       const hours = parseInt(url.searchParams.get('hours') || '24');
-      result = await getHourlyStats(env, hours);
+      result = await getHourlyStats(env, hours, siteId);
     } else if (path === '/admin/api/daily') {
       const days = parseInt(url.searchParams.get('days') || '30');
-      result = await getDailyStats(env, days);
+      result = await getDailyStats(env, days, siteId);
     } else if (path === '/admin/api/pages') {
       const days = parseInt(url.searchParams.get('days') || '30');
-      result = await getPageStats(env, days);
+      result = await getPageStats(env, days, siteId);
     } else if (path === '/admin/api/downloads') {
       const days = parseInt(url.searchParams.get('days') || '30');
-      result = await getDownloadStats(env, days);
+      result = await getDownloadStats(env, days, siteId);
     } else if (path === '/admin/api/locations') {
       const days = parseInt(url.searchParams.get('days') || '30');
-      result = await getLocationStats(env, days);
+      result = await getLocationStats(env, days, siteId);
     } else if (path === '/admin/api/ips') {
       const limit = parseInt(url.searchParams.get('limit') || '100');
       const offset = parseInt(url.searchParams.get('offset') || '0');
       const location = url.searchParams.get('location') || '';
       const download = url.searchParams.get('download') || '';
-      result = await getIpList(env, limit, offset, location, download);
+      result = await getIpList(env, limit, offset, location, download, siteId);
     } else if (path === '/admin/api/recent') {
       const limit = parseInt(url.searchParams.get('limit') || '50');
-      result = await getRecentVisits(env, limit);
+      result = await getRecentVisits(env, limit, siteId);
     } else {
       return new Response('Not Found', { status: 404, headers: corsHeaders });
     }
@@ -600,6 +679,62 @@ async function handleAdminApi(request, env, corsHeaders) {
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+}
+
+async function handleSitesApi(request, env, corsHeaders) {
+  const url = new URL(request.url);
+  
+  try {
+    if (request.method === 'GET') {
+      const sites = await listSites(env);
+      return new Response(JSON.stringify(sites), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    
+    if (request.method === 'POST') {
+      const data = await request.json();
+      const name = (data.name || '').trim();
+      if (!name) {
+        return new Response(JSON.stringify({ error: '站点名称不能为空' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+      const site = await createSite(env, name);
+      return new Response(JSON.stringify(site), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    
+    if (request.method === 'DELETE') {
+      const id = url.searchParams.get('id');
+      if (!id) {
+        return new Response(JSON.stringify({ error: '缺少站点ID' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+      if (id === 'default') {
+        return new Response(JSON.stringify({ error: '默认站点不能删除' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+      await deleteSite(env, id);
+      return new Response(JSON.stringify({ status: 'ok' }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    
+    return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
@@ -832,7 +967,11 @@ async function handleTrack(request, env, corsHeaders) {
     const data = await request.json();
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     const ua = request.headers.get('User-Agent') || '';
-    const now = new Date().toISOString();
+    const siteId = data.site_id || 'default';
+    
+    // 验证站点存在（不存在则归入 default）
+    const site = await getSiteById(env, siteId);
+    const finalSiteId = site ? siteId : 'default';
     
     // 简单 session_id 生成
     const session_id = generateSessionId(ip, ua);
@@ -845,8 +984,8 @@ async function handleTrack(request, env, corsHeaders) {
 
     // 插入访问记录
     await env.DB.prepare(`
-      INSERT INTO visits (ip_address, ip_location, user_agent, page_url, page_title, referrer, duration, is_download, download_item, session_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO visits (ip_address, ip_location, user_agent, page_url, page_title, referrer, duration, is_download, download_item, session_id, site_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       ip,
       location,
@@ -857,10 +996,11 @@ async function handleTrack(request, env, corsHeaders) {
       data.duration || 0,
       data.is_download ? 1 : 0,
       data.download_item || '',
-      session_id
+      session_id,
+      finalSiteId
     ).run();
 
-    return new Response(JSON.stringify({ status: 'ok' }), {
+    return new Response(JSON.stringify({ status: 'ok', site_id: finalSiteId }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   } catch (err) {
@@ -869,7 +1009,49 @@ async function handleTrack(request, env, corsHeaders) {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }
-}function handleTrackView(corsHeaders) {
+}
+
+async function handleTrackView(request, env, corsHeaders) {
+  try {
+    const url = new URL(request.url);
+    const pageUrl = url.searchParams.get('page_url') || '/';
+    const pageTitle = url.searchParams.get('page_title') || '';
+    const siteId = url.searchParams.get('site_id') || 'default';
+    
+    // 验证站点存在
+    const site = await getSiteById(env, siteId);
+    const finalSiteId = site ? siteId : 'default';
+    
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const ua = request.headers.get('User-Agent') || '';
+    const session_id = generateSessionId(ip, ua);
+    
+    let location = '内网IP';
+    if (!isPrivateIp(ip)) {
+      location = await queryIpLocation(ip, env);
+    }
+    
+    await env.DB.prepare(`
+      INSERT INTO visits (ip_address, ip_location, user_agent, page_url, page_title, referrer, duration, is_download, download_item, session_id, site_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      ip,
+      location,
+      ua,
+      pageUrl,
+      pageTitle,
+      '',
+      0,
+      0,
+      '',
+      session_id,
+      finalSiteId
+    ).run();
+  } catch (err) {
+    // 像素埋点不应返回错误，静默处理
+    console.error('TrackView error:', err);
+  }
+  
   // 1x1 透明 GIF（Workers 兼容：base64 → Uint8Array）
   const gifB64 = 'R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
   const binaryStr = atob(gifB64);
@@ -907,7 +1089,13 @@ function renderDashboard() {
       <li><a href="/admin" class="active">概览</a></li>
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
+      <li><a href="/admin/sites">站点管理</a></li>
       <li><a href="/admin/users">用户管理</a></li>
+      <li>
+        <select id="siteSelector" class="form-control" style="width:auto;min-width:140px;margin-left:8px;" onchange="switchSite(this.value)">
+          <option value="default">默认站点</option>
+        </select>
+      </li>
       <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
     </ul>
   </nav>
@@ -949,16 +1137,16 @@ function renderDashboard() {
   <script src="/static/js/main.js"></script>
   <script>
     function updateHourlyRange(hours) {
-      const label = hours <= 24 ? '近24小时' : '近' + hours + '小时';
+      const siteId = getSelectedSiteId();
       document.getElementById('hourlyRangeLabel').textContent = label;
-      fetch('/admin/api/hourly?hours=' + hours).then(r => r.json()).then(data => updateHourlyChart(data, hours));
+      fetch('/admin/api/hourly?hours=' + hours + '&site_id=' + siteId).then(r => r.json()).then(data => updateHourlyChart(data, hours));
     }
     function updateDailyRange(days) {
-      const label = days <= 1 ? '近1天' : '近' + days + '天';
+      const siteId = getSelectedSiteId();
       document.getElementById('dailyRangeLabel').textContent = label;
-      fetch('/admin/api/daily?days=' + days).then(r => r.json()).then(data => updateDailyChart(data, days));
+      fetch('/admin/api/daily?days=' + days + '&site_id=' + siteId).then(r => r.json()).then(data => updateDailyChart(data, days));
     }
-    document.addEventListener('DOMContentLoaded', function() { loadStats(); });
+    document.addEventListener('DOMContentLoaded', function() { loadSites(); loadStats(); });
   </script>
 </body>
 </html>`;
@@ -982,7 +1170,13 @@ function renderDashboard() {
       <li><a href="/admin">概览</a></li>
       <li><a href="/admin/stats" class="active">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
+      <li><a href="/admin/sites">站点管理</a></li>
       <li><a href="/admin/users">用户管理</a></li>
+      <li>
+        <select id="siteSelector" class="form-control" style="width:auto;min-width:140px;margin-left:8px;" onchange="switchSite(this.value)">
+          <option value="default">默认站点</option>
+        </select>
+      </li>
       <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
     </ul>
   </nav>
@@ -1019,19 +1213,20 @@ function renderDashboard() {
     let currentRange = 30;
     function updatePageRange(days) {
       currentRange = days;
+      const siteId = getSelectedSiteId();
       const label = days <= 1 ? '近1天' : '近' + days + '天';
       document.getElementById('pageRangeLabel').textContent = label;
       document.getElementById('downloadRangeLabel').textContent = label;
       document.getElementById('locationRangeLabel').textContent = label;
       Promise.all([
-        fetch('/admin/api/pages?days=' + days).then(r => r.json()),
-        fetch('/admin/api/downloads?days=' + days).then(r => r.json()),
-        fetch('/admin/api/locations?days=' + days).then(r => r.json())
+        fetch('/admin/api/pages?days=' + days + '\u0026site_id=' + siteId).then(r => r.json()),
+        fetch('/admin/api/downloads?days=' + days + '\u0026site_id=' + siteId).then(r => r.json()),
+        fetch('/admin/api/locations?days=' + days + '\u0026site_id=' + siteId).then(r => r.json())
       ]).then(([pages, downloads, locations]) => {
         updatePageTable(pages); updateDownloadTable(downloads); updateLocationTable(locations);
       }).catch(err => console.error('加载失败:', err));
     }
-    document.addEventListener('DOMContentLoaded', function() { updatePageRange(30); });
+    document.addEventListener('DOMContentLoaded', function() { loadSites(); updatePageRange(30); });
   </script>
 </body>
 </html>`;
@@ -1055,7 +1250,13 @@ function renderDashboard() {
       <li><a href="/admin">概览</a></li>
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips" class="active">IP 列表</a></li>
+      <li><a href="/admin/sites">站点管理</a></li>
       <li><a href="/admin/users">用户管理</a></li>
+      <li>
+        <select id="siteSelector" class="form-control" style="width:auto;min-width:140px;margin-left:8px;" onchange="switchSite(this.value)">
+          <option value="default">默认站点</option>
+        </select>
+      </li>
       <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
     </ul>
   </nav>
@@ -1086,7 +1287,7 @@ function renderDashboard() {
   <footer class="footer">AVL Code 站长统计系统 · Powered by Cloudflare Workers + D1</footer>
   <script src="/static/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function() { loadIPList(); });
+    document.addEventListener('DOMContentLoaded', function() { loadSites(); loadIPList(); });
   </script>
 </body>
 </html>`;
@@ -1110,7 +1311,13 @@ function renderUserManage() {
       <li><a href="/admin">概览</a></li>
       <li><a href="/admin/stats">详细统计</a></li>
       <li><a href="/admin/ips">IP 列表</a></li>
+      <li><a href="/admin/sites">站点管理</a></li>
       <li><a href="/admin/users" class="active">用户管理</a></li>
+      <li>
+        <select id="siteSelector" class="form-control" style="width:auto;min-width:140px;margin-left:8px;" onchange="switchSite(this.value)">
+          <option value="default">默认站点</option>
+        </select>
+      </li>
       <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
     </ul>
   </nav>
@@ -1177,7 +1384,77 @@ function renderUserManage() {
 
   <script src="/static/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function() { loadUsers(); });
+    document.addEventListener('DOMContentLoaded', function() { loadSites(); loadUsers(); });
+  </script>
+</body>
+</html>`;
+}
+function renderSitesManage() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>站点管理 - AVL Code 站长统计</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/admin" class="navbar-brand">
+      <img src="/static/img/avl-code-logo.png" alt="AVL Code" style="height:28px;">
+      <span>站长统计</span>
+    </a>
+    <ul class="navbar-nav">
+      <li><a href="/admin">概览</a></li>
+      <li><a href="/admin/stats">详细统计</a></li>
+      <li><a href="/admin/ips">IP 列表</a></li>
+      <li><a href="/admin/sites" class="active">站点管理</a></li>
+      <li><a href="/admin/users">用户管理</a></li>
+      <li>
+        <select id="siteSelector" class="form-control" style="width:auto;min-width:140px;margin-left:8px;" onchange="switchSite(this.value)">
+          <option value="default">默认站点</option>
+        </select>
+      </li>
+      <li><a href="#" onclick="handleLogout();return false;">退出登录</a></li>
+    </ul>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <span>站点列表</span>
+        <button onclick="openSiteModal()" class="btn btn-primary">+ 新增站点</button>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>站点 ID</th><th>站点名称</th><th>追踪 Token</th><th>创建时间</th><th>操作</th></tr>
+          </thead>
+          <tbody id="sitesTableBody">
+            <tr><td colspan="5" class="text-center">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <footer class="footer">AVL Code 站长统计系统 · Powered by Cloudflare Workers + D1</footer>
+
+  <div id="createSiteModal" class="modal-overlay">
+    <div class="modal">
+      <h3>新增站点</h3>
+      <div class="form-group">
+        <label>站点名称</label>
+        <input type="text" id="newSiteName" placeholder="请输入站点名称">
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeSiteModal()" class="btn btn-outline">取消</button>
+        <button onclick="createSite()" class="btn btn-primary">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() { loadSites(); loadSitesTable(); });
   </script>
 </body>
 </html>`;
@@ -1391,7 +1668,7 @@ export default {
     }
 
     // ===== 管理后台页面（需要登录验证） =====
-    if (path === '/admin' || path === '/admin/' || path === '/admin/stats' || path === '/admin/ips' || path === '/admin/users') {
+    if (path === '/admin' || path === '/admin/' || path === '/admin/stats' || path === '/admin/ips' || path === '/admin/sites' || path === '/admin/users') {
       const token = getTokenFromCookie(request);
       const currentUserId = await verifySession(env, token);
       if (!currentUserId) {
@@ -1411,6 +1688,11 @@ export default {
           headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
         });
       }
+      if (path === '/admin/sites') {
+        return new Response(renderSitesManage(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+        });
+      }
       if (path === '/admin/users') {
         return new Response(renderUserManage(), {
           headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
@@ -1420,6 +1702,14 @@ export default {
       return new Response(renderDashboard(), {
         headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
       });
+    }
+
+    // ===== 站点管理 API（需要登录） =====
+    if (path === '/admin/api/sites') {
+      const token = getTokenFromCookie(request);
+      const userId = await verifySession(env, token);
+      if (!userId) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      return handleSitesApi(request, env, corsHeaders);
     }
 
     // API 路由（需要登录验证）
@@ -1440,7 +1730,7 @@ export default {
       return handleTrack(request, env, corsHeaders);
     }
     if (path === '/track/view') {
-      return handleTrackView(corsHeaders);
+      return handleTrackView(request, env, corsHeaders);
     }
 
     // 根路径返回管理后台（需要登录）
